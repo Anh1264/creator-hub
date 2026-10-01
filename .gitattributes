@@ -1,0 +1,6 @@
+# Normalize line endings so Windows (Asus) and macOS (Mac Mini) produce identical diffs.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff2 binary
