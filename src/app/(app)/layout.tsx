@@ -1,8 +1,13 @@
+import Link from "next/link";
 import { cookies } from "next/headers";
 import { signOut } from "@/app/login/actions";
 import { Mono } from "@/components/bits";
 import { EditorProvider, NewCollabButton, NewPostButton } from "@/components/editor";
-import { IconCollabs, IconHome, IconLogout, IconPlus, IconPosts } from "@/components/icons";
+import { IconCollabs, IconCutout, IconFilm, IconHome, IconLogout, IconMusic, IconPlus, IconPosts, IconRocket, IconTools, IconTranscript, IconUsers } from "@/components/icons";
+import { DueWatcher } from "@/components/launch/due-watcher";
+import { APP_TIMEZONE } from "@/lib/env";
+import { listItems } from "@/lib/launch/store";
+import { itemState, nowLocal } from "@/lib/launch/types";
 import { NavLink, ThemeToggle } from "@/components/nav";
 import { monthOf } from "@/lib/dates";
 import { byUrgency, isActiveIn, summarize } from "@/lib/domain";
@@ -16,6 +21,8 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     .filter((c) => isActiveIn(c, month))
     .map((c) => summarize(c, posts, month, today))
     .sort(byUrgency);
+  const now = nowLocal(APP_TIMEZONE);
+  const dueCount = listItems().filter((i) => itemState(i, now) === "due").length;
   const theme = (await cookies()).get("theme")?.value;
   const initialTheme = theme === "light" || theme === "dark" ? theme : "system";
 
@@ -23,7 +30,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     <EditorProvider collabs={collabs} today={today} suggestedCollabId={active[0]?.collab.id}>
       {IS_DEMO && (
         <div className="demo-banner">
-          Demo mode — sample data in memory, resets on restart. Add Supabase keys to <code>.env.local</code> to go live.
+          Local mode — your data is saved on this computer (<code>.tools/data</code>). Add Supabase keys to <code>.env.local</code> to sync across devices.
         </div>
       )}
       <div className="app">
@@ -32,6 +39,8 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
           <NavLink href="/" exact><IconHome /><span>Overview</span></NavLink>
           <NavLink href="/posts"><IconPosts /><span>All posts</span></NavLink>
           <NavLink href="/collabs" exact><IconCollabs /><span>All collabs</span></NavLink>
+          <NavLink href="/launchpad"><IconRocket /><span className="nav-label">Launchpad</span>{dueCount > 0 && <span className="mini due-badge">{dueCount} due</span>}</NavLink>
+          <NavLink href="/characters"><IconUsers /><span className="nav-label">Characters</span></NavLink>
 
           <div className="side-h">Collabs this month</div>
           {active.map((s) => (
@@ -42,6 +51,12 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
             </NavLink>
           ))}
           <NewCollabButton className="nav faint" label={<><span style={{ width: 20, textAlign: "center" }}>+</span><span>New collab</span></>} />
+
+          <Link href="/tools" className="side-h side-link">Tools</Link>
+          <NavLink href="/tools/remove-bg"><IconCutout /><span className="nav-label">Remove background</span></NavLink>
+          <NavLink href="/tools/youtube-mp3"><IconMusic /><span className="nav-label">YouTube → MP3</span></NavLink>
+          <NavLink href="/tools/video-download"><IconFilm /><span className="nav-label">Video downloader</span></NavLink>
+          <NavLink href="/tools/transcribe"><IconTranscript /><span className="nav-label">Transcribe</span></NavLink>
 
           <div className="side-foot">
             <ThemeToggle initial={initialTheme} />
@@ -58,9 +73,13 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
 
       <nav className="tabbar" aria-label="Main">
         <NavLink href="/" exact className=""><IconHome /><span>Overview</span></NavLink>
+        <NavLink href="/launchpad" className=""><IconRocket /><span>Launch{dueCount > 0 ? ` (${dueCount})` : ""}</span></NavLink>
         <NavLink href="/collabs" className=""><IconCollabs /><span>Collabs</span></NavLink>
         <NavLink href="/posts" className=""><IconPosts /><span>Posts</span></NavLink>
+        <NavLink href="/characters" className=""><IconUsers /><span>Cast</span></NavLink>
+        <NavLink href="/tools" className=""><IconTools /><span>Tools</span></NavLink>
       </nav>
+      <DueWatcher />
       <NewPostButton className="fab" label={<IconPlus aria-label="New post" />} />
     </EditorProvider>
   );

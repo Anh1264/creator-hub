@@ -19,3 +19,7 @@ Personal internal app for tracking brand-collab posting quotas. Single user (Aid
 - **Dates** are strings (`YYYY-MM-DD`, `YYYY-MM`); "today" is computed in `APP_TIMEZONE`. Don't use `new Date()` for month math.
 - **Mutations** are server actions in `src/app/actions.ts`; every action calls `requireUser()`.
 - Run `npm run typecheck && npm run lint && npm run build` before pushing.
+
+## Project status & history
+
+Read `PROJECT-CONTEXT.md` first: what has been built, current status, open items, and rules for working on this repo. Update its status, open items and change log at the end of any session that changes something.

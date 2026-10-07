@@ -104,7 +104,39 @@ Optional: run `npm i -g vercel`, then `vercel link` and `vercel env pull .env.lo
 
 ---
 
-## How the numbers work
+## 5. Tools (remove background · YouTube → MP3 · video downloader)
+
+Under **Tools** in the sidebar. They run on **your own computer** — on Vercel the pages show a "run it locally" note instead.
+
+**Setup (once per machine):** `npm install`. That installs ffmpeg/ffprobe and the background-removal model from npm, then downloads the official standalone **yt-dlp** for your OS into `.tools/bin/` (checksum-verified). If that last step fails (offline, say), run `npm run tools:setup` later. The **Setup** box on `/tools` shows what's installed.
+
+| Tool | What it does |
+|---|---|
+| **Remove background** | Drop, choose or paste images → transparent PNG (or white / black / any colour). Runs the ISNet model locally via onnxruntime; images never leave the machine. "Best" ≈ 88 MB model, "Fast" ≈ 44 MB. |
+| **YouTube → MP3** | Paste a link → MP3 (128–320 kbps) with title, channel and square cover art embedded. Works on most sites yt-dlp supports, not just YouTube. |
+| **Video downloader** | Any yt-dlp site (YouTube, TikTok, Instagram, X, Vimeo…). Pick a max resolution and either **MP4 · H.264** (opens in CapCut/Premiere/phones) or **max quality** (VP9/AV1, may be MKV). |
+| **Transcribe** | Paste a link → transcript. Uses the video's own captions when it has them (instant), otherwise **Whisper** transcribes the audio on this computer (whisper.cpp, Metal GPU on the Mac mini). Also takes uploaded audio/video files. Copy, or save TXT / SRT / VTT; transcripts are kept in `.tools/transcripts/` until you delete them. |
+
+- **Whisper models** are downloaded once from the Transcribe page (*Large v3 Turbo* ≈574 MB, recommended; *Small* ≈190 MB for the laptop) into `.tools/models/`.
+- Finished files download to your browser's Downloads folder automatically. Working copies sit in `.tools/work/` and are deleted after 6 hours (or when you click ✕).
+- **When YouTube downloads break** (it changes often): click **Update yt-dlp** on `/tools`, or run `npm run tools:update`.
+- **Private / age-restricted / members-only videos:** set *Sign-in cookies* to the browser you're logged into. yt-dlp reads that browser's cookies (read-only; macOS may ask for Keychain access the first time).
+- Everything the tools write stays inside this folder: `.tools/` (git-ignored) and `node_modules/`.
+- Only download content you have the rights to use.
+
+---
+
+## 6. Launchpad & Characters
+
+- **Launchpad** (`/launchpad`) — prep posts ahead and post them by hand when it's time.
+  - Each post holds its media, one caption (with optional per-platform versions for X / Instagram / Facebook), hashtags, a first comment, a link and a time per platform.
+  - Live checks: character limits, Instagram's 5-hashtag limit, and missing **program tags** (e.g. `#DreaminaCPP @dreamina_cpp`), with a one-click fix. Hashtag sets save reusable tags.
+  - When a post is due it appears under **Due now**, with a count badge in the sidebar and the browser tab. Desktop alerts are optional. Each post gets a copy kit: save media, copy caption / hashtags / first comment, and open the app (X opens with the text already filled in).
+  - **Mark posted** + the live link → the post counts toward each collab it's tagged with. Undo removes the entry again.
+  - List and calendar views, filtered by platform and collab, plus a this-month strip for quota collabs.
+- **Characters** (`/characters`) — a photo album of your character images. Drop, choose or paste images. Click one to view it full size (← → to browse), **Copy image** to paste it straight into an AI tool, download or delete.
+- **Storage:** with no Supabase keys, everything (collabs, posts, Launchpad, characters, uploaded media) is saved on this computer in `.tools/data/`. It survives restarts but doesn't sync to the laptop. Moving this to Supabase/cloud storage is the next decision.
+
 
 - A post **counts toward the month it went live** (`posted_at`), not the month it was planned.
 - **Up next** for the current month is everything due this month, plus anything overdue or undated.
@@ -133,14 +165,19 @@ src/
     (app)/page.tsx            overview (month view, ?m=YYYY-MM, ?view=table)
     (app)/collabs/…           collab list + collab page (6-month history)
     (app)/posts/page.tsx      all posts with filters
+    (app)/tools/…             Tools pages (remove background, YouTube → MP3, video downloader)
+    api/tools/…               tool endpoints (local only): status, yt-dlp jobs, background removal
     actions.ts                every write (server actions)
     login/, auth/callback/    email code + link sign-in
     globals.css               Paper + Dusk design tokens and all styles
   components/                 editor dialogs, checklist rows, tables, icons
+  components/tools/           client UI for the tools
   lib/
     domain.ts                 types + quota/status logic (pure, testable)
     dates.ts                  string-based date math (timezone-safe)
     data/                     repo interface: supabase.ts (live) · demo.ts (sample)
+    tools/                    yt-dlp/ffmpeg discovery + job runner, background removal, transcripts (captions + Whisper)
+scripts/setup-tools.mjs       downloads yt-dlp into .tools/ (runs after npm install)
 supabase/migrations/          schema + row-level security
 ```
 
