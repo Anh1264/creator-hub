@@ -1,6 +1,6 @@
 # Creator Hub — project context (read this first)
 
-_Last updated: 2026-10-05. Update this file at the end of any session that changes the app, its data, or the plan._
+_Last updated: 2026-10-11. Update this file at the end of any session that changes the app, its data, or the plan._
 _Two copies: this file in the repo root, and `claude/PROJECT-CONTEXT.md` in the "creator-hub" Claude project. Keep them identical._
 
 ## What it is
@@ -12,7 +12,7 @@ Single user. Owner: Aiden Vu (vuquocanh12052007@gmail.com).
 
 ## Where things live
 - **Code (Mac mini M4):** `/Users/quocanh/Documents/AI_Work/creator-hub`. This is the folder connected to Cowork sessions. In device_bash it's `$HOME/mnt/creator-hub`.
-- **GitHub:** `https://github.com/Anh1264/creator-hub`. Only commit "Creator Hub v1" is pushed; **all work below is uncommitted** on the Mac.
+- **GitHub:** `https://github.com/Anh1264/creator-hub`. Pushed up to `2c43d6d` "Launchpad, Characters, Tools, Transcribe" (2026-10-07). The 2026-10-11 compressor work is **uncommitted** until Aiden commits it.
 - **Second machine:** Asus Zenbook (Windows), which syncs via GitHub. Code must stay cross-platform (Windows + macOS).
 - Repo docs: `README.md` (setup, tools, project map) and `AGENTS.md` (coding rules; `CLAUDE.md` just includes it).
 
@@ -80,6 +80,19 @@ Local-only: they run on the user's own computer. On Vercel they return 501 and s
     - With "Auto-detect", audio is split into ≤28 s windows at pauses (ffmpeg silencedetect). Each window is language-detected separately, so mixed Korean/English videos work, and silent windows are skipped.
     - With a fixed language, the whole file is done in one pass.
     - Both modes use `maxContext: 0` + `temperatureInc: 0.2`, and `cleanLoops()` collapses repeated sentences.
+- **Compress video** (`/tools/compress-video`): built 2026-10-11. `src/lib/tools/compress-video.ts`.
+  - Upload is streamed to `.tools/work/c-<id>/` (XHR on the client for upload progress), ffprobe'd, poster frame made, then queued. **One encode at a time.** Jobs in memory, kept 6 h.
+  - **Quality mode:** Light/Balanced/Strong/Max = x264 CRF 20/24/28/32 (x265 = +4).
+  - **Target-size mode:** two-pass at `(MB × 1e6 × 8 × 0.96) / duration − audio`. Auto-lowers resolution when bits-per-pixel drops below 0.055 (H.264) / 0.038 (H.265), drops audio to 64k if tight, errors if < 80 kbps of video. If the file overshoots, the last pass re-runs at a scaled bitrate (≤ 2 tries). If the input is already under the target → Balanced quality instead (with a note).
+  - Options: max shorter side 1080/720/480, fps cap 30/24, H.264/H.265 (`hvc1` tag), audio 128/64/none, speed veryfast/medium/slow.
+  - **Encoders are detected at run time** (`ffmpeg -encoders`): libx264 → h264_videotoolbox fallback; libx265 → hevc_videotoolbox. VideoToolbox can't do CRF, so quality levels map to bits-per-pixel. The bundled ffmpeg on the Mac is `@ffmpeg-installer/darwin-arm64` 4.1.5, **which encoders it has is unverified** (Linux build has libx264 + libx265).
+  - Output `<name>-compressed.mp4` (faststart, yuv420p, even dims). Flags `bigger` when the result isn't smaller. Auto-saves when done unless bigger. The uploaded original is deleted after a successful encode.
+  - Known limit: HDR (iPhone Dolby Vision/HLG) gets converted to 8-bit without tone-mapping, so colours may look washed out.
+- **Compress images** (`/tools/compress-image`): built 2026-10-11. `src/lib/tools/compress-image.ts` (sharp 0.35).
+  - Format same/JPG (mozjpeg)/WebP/AVIF/PNG (palette quantization below q100). Quality slider or **target KB** (encode at q10 first; if too big shrink by √(target/size); otherwise binary-search q 11–95). Max longest side 4096…720. EXIF stripped by default (rotation applied); "Keep camera & location data" keeps EXIF + ICC.
+  - **HEIC:** sharp's prebuilt can't decode it → on macOS converts with `/usr/bin/sips`; on Windows it errors with a clear message.
+  - Same format + no resize + result not smaller → returns the original bytes (`X-Kept-Original`). Animated GIF stays animated (GIF/WebP). One image at a time server-side.
+  - Client: batch grid like Remove background, hold to compare, totals, "Redo with new settings", Save all.
 - **Setup:**
   - `npm install` runs `scripts/setup-tools.mjs` (postinstall), which downloads the official standalone yt-dlp into `.tools/bin` (SHA-256 verified) and links the npm ffmpeg/ffprobe (`@ffmpeg-installer`, `@ffprobe-installer`) into `.tools/ffmpeg`.
   - `npm run tools:update` updates yt-dlp; there's also an "Update yt-dlp" button on `/tools`.
@@ -111,16 +124,22 @@ Local-only: they run on the user's own computer. On Vercel they return 501 and s
 - Keep the UI consistent with the existing tokens and classes, and check it on mobile (the tab bar has 6 items: Overview / Launch / Collabs / Posts / Cast / Tools).
 - **Aiden's preferences:** direct, concise, brutally honest feedback (challenge ideas, name avoidance). He infers scope from short prompts, so infer it fully too.
 
+### Status as of 2026-10-11
+- **Fixed a latent upload bug:** with `src/proxy.ts` in front of `/api/*`, Next.js buffers request bodies and **cuts them off at 10 MB** (`proxyClientMaxBodySize`). Launchpad uploads, Transcribe file uploads and Remove-background images over 10 MB were silently truncated. The proxy matcher now skips `api/`; every API route already checks sign-in itself (`guard()` / `isSignedIn()`). If Supabase is turned on later, check that long-open pages' API calls still refresh the session.
+- Compressors tested in the cloud container (Linux ffmpeg 4.1, synthetic media): quality levels, 2-pass size targets (1 MB / 2 MB hit), H.265 overshoot → re-fit, auto-resolution, rotated phone video, invalid file, image quality/target/AVIF/WebP/PNG/EXIF-rotation. **Not yet run on the Mac** (encoder set, `sips` HEIC path) or Windows.
+- Also fixed the Turbopack "whole project traced" warning at `media.ts:254` (`turbopackIgnore`).
+
 ## Open items / next steps
 - [ ] Aiden: re-run the mixed-language video with Language = Auto-detect (mixed OK) and check the English parts. If a part is still wrong, set Language explicitly.
-- [ ] Commit and push all the uncommitted work to GitHub so the Asus laptop gets it.
+- [ ] Aiden: try both compressors on real footage/photos on the Mac (esp. a big iPhone video and a HEIC photo), then commit + push.
+- [ ] Remove `Claude outputs/` from the repo (`git rm -r --cached "Claude outputs"` + .gitignore).
 - [ ] **Decide storage + hosting** (Aiden deferred this, 2026-10-05). Options: Supabase (Postgres + Storage; the free storage tier is small for video), or keep local on the Mac mini and reach it from the phone over Wi-Fi/Tailscale. Migrating means porting `.tools/data/*.json` + `assets/` and adding a Supabase repo for Launchpad/characters (schema migration in `supabase/migrations/`).
 - [ ] Optional: deploy to Vercel (README §4). The tools stay local-only. **Launchpad uploads also need real storage before hosting.**
 - [ ] Launchpad phase 2/3 ideas not built yet: deadline reminders for program submissions (Dreamina 7-day performance claim, Kinovi monthly form), asset fixes (reframe 9:16/4:5, compress, cover frame), batch scheduling, post history with view counts, phone access over the LAN.
 - [ ] Suggested next tools, agreed as highest value but not built yet:
-  1. **Video toolkit** on ffmpeg: grab the last frame (for chaining Seedance shots), reframe 16:9→9:16 with a blurred background, compress, trim, join, GIF.
+  1. **Video toolkit** on ffmpeg: grab the last frame (for chaining Seedance shots), reframe 16:9→9:16 with a blurred background, trim, join, GIF. (Compress is done.)
   2. **CPP caption builder + quick-log**: pick a collab, get the correct hashtags and mentions, and log the post against its quota in one click.
-  3. Later: auto-captions to SRT for his own shorts (now covered by Transcribe → upload), an AI upscaler (Real-ESRGAN), and an image converter (HEIC→JPG, resize).
+  3. Later: auto-captions to SRT for his own shorts (now covered by Transcribe → upload), an AI upscaler (Real-ESRGAN), and an image converter (HEIC→JPG, resize) — mostly covered by Compress images now.
 
 ## Change log
 - **2026-10-01:** Replaced the placeholder collabs with the 5 real CPPs from Gmail (demo.ts).
@@ -130,3 +149,4 @@ Local-only: they run on the user's own computer. On Vercel they return 501 and s
 - **2026-10-05:** Added **Launchpad** (post queue + copy kit + checks + calendar + due alerts + mark posted → quota) and **Characters** database. Local mode now persists everything to `.tools/data/`.
 - **2026-10-05:** Characters simplified to an image-only photo album (his request).
 - **2026-10-05:** Transcribe fix: per-window language detection for mixed-language audio, silent-window skipping, anti-repetition (maxContext 0, temperature fallback, cleanLoops), and multiple languages shown (e.g. "Korean + English").
+- **2026-10-11:** Added **Compress video** (quality levels or target MB, 2-pass, auto-resolution, H.264/H.265, fps/audio/speed) and **Compress images** (quality or target KB, JPG/WebP/AVIF/PNG, resize, EXIF, HEIC via sips). Proxy no longer runs on `/api/*` (fixes 10 MB upload truncation). README updated.

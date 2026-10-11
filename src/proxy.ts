@@ -45,6 +45,9 @@ export async function proxy(request: NextRequest) {
   return response;
 }
 
+// API routes are left out: each one checks sign-in itself (guard() / isSignedIn()), and running the
+// proxy in front of them makes Next.js buffer the request body and cut it off at 10 MB, which
+// silently truncated big uploads (Launchpad media, Transcribe files, the compressors).
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
+  matcher: ["/((?!api/|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
 };

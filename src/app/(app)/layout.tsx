@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { signOut } from "@/app/login/actions";
 import { Mono } from "@/components/bits";
 import { EditorProvider, NewCollabButton, NewPostButton } from "@/components/editor";
-import { IconCollabs, IconCutout, IconFilm, IconHome, IconLogout, IconMusic, IconPlus, IconPosts, IconRocket, IconTools, IconTranscript, IconUsers } from "@/components/icons";
+import { IconCollabs, IconCutout, IconFilm, IconHome, IconLogout, IconMusic, IconPlus, IconPosts, IconRocket, IconShrinkImage, IconShrinkVideo, IconTools, IconTranscript, IconUsers } from "@/components/icons";
 import { DueWatcher } from "@/components/launch/due-watcher";
 import { APP_TIMEZONE } from "@/lib/env";
 import { listItems } from "@/lib/launch/store";
@@ -57,6 +57,8 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
           <NavLink href="/tools/youtube-mp3"><IconMusic /><span className="nav-label">YouTube → MP3</span></NavLink>
           <NavLink href="/tools/video-download"><IconFilm /><span className="nav-label">Video downloader</span></NavLink>
           <NavLink href="/tools/transcribe"><IconTranscript /><span className="nav-label">Transcribe</span></NavLink>
+          <NavLink href="/tools/compress-video"><IconShrinkVideo /><span className="nav-label">Compress video</span></NavLink>
+          <NavLink href="/tools/compress-image"><IconShrinkImage /><span className="nav-label">Compress images</span></NavLink>
 
           <div className="side-foot">
             <ThemeToggle initial={initialTheme} />

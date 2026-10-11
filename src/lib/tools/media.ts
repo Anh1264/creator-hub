@@ -251,7 +251,7 @@ async function start(i: Internal) {
     i.filePath = file;
     Object.assign(job, {
       status: "done", stage: "Ready", percent: 100, speed: null, eta: null,
-      fileName: path.basename(file), size: fs.statSync(file).size, finishedAt: Date.now(),
+      fileName: path.basename(file), size: fs.statSync(/*turbopackIgnore: true*/ file).size, finishedAt: Date.now(),
     });
     if (job.title === job.url) job.title = path.basename(file).replace(/\s\[[^\]]+\]\.\w+$/, "");
   } catch (e) {

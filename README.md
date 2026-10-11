@@ -104,7 +104,7 @@ Optional: run `npm i -g vercel`, then `vercel link` and `vercel env pull .env.lo
 
 ---
 
-## 5. Tools (remove background · YouTube → MP3 · video downloader)
+## 5. Tools (remove background · YouTube → MP3 · video downloader · transcribe · compressors)
 
 Under **Tools** in the sidebar. They run on **your own computer** — on Vercel the pages show a "run it locally" note instead.
 
@@ -116,6 +116,8 @@ Under **Tools** in the sidebar. They run on **your own computer** — on Vercel 
 | **YouTube → MP3** | Paste a link → MP3 (128–320 kbps) with title, channel and square cover art embedded. Works on most sites yt-dlp supports, not just YouTube. |
 | **Video downloader** | Any yt-dlp site (YouTube, TikTok, Instagram, X, Vimeo…). Pick a max resolution and either **MP4 · H.264** (opens in CapCut/Premiere/phones) or **max quality** (VP9/AV1, may be MKV). |
 | **Transcribe** | Paste a link → transcript. Uses the video's own captions when it has them (instant), otherwise **Whisper** transcribes the audio on this computer (whisper.cpp, Metal GPU on the Mac mini). Also takes uploaded audio/video files. Copy, or save TXT / SRT / VTT; transcripts are kept in `.tools/transcripts/` until you delete them. |
+| **Compress video** | Drop videos → smaller MP4. Pick **how much** (Light / Balanced / Strong / Max, i.e. x264 CRF 20/24/28/32) or a **target size** in MB (two-pass; lowers the resolution itself if the size is too tight to stay sharp, and re-encodes once more if it overshoots). Optional max resolution, 30/24 fps cap, H.265 (≈40% smaller, uses whichever encoders this machine's ffmpeg has), audio 128/64 kbps or none. One video at a time. |
+| **Compress images** | Drop, choose or paste images → smaller files. **Quality** slider or **target size** in KB (searches for the highest quality that fits, shrinks the image if it must). Keep the format or convert to JPG / WebP / AVIF / PNG, cap the longest side, strip or keep EXIF/location. HEIC (iPhone) photos work on the Mac via `sips`. If the result would be bigger than the original, you get the original back. |
 
 - **Whisper models** are downloaded once from the Transcribe page (*Large v3 Turbo* ≈574 MB, recommended; *Small* ≈190 MB for the laptop) into `.tools/models/`.
 - Finished files download to your browser's Downloads folder automatically. Working copies sit in `.tools/work/` and are deleted after 6 hours (or when you click ✕).
@@ -165,8 +167,8 @@ src/
     (app)/page.tsx            overview (month view, ?m=YYYY-MM, ?view=table)
     (app)/collabs/…           collab list + collab page (6-month history)
     (app)/posts/page.tsx      all posts with filters
-    (app)/tools/…             Tools pages (remove background, YouTube → MP3, video downloader)
-    api/tools/…               tool endpoints (local only): status, yt-dlp jobs, background removal
+    (app)/tools/…             Tools pages (remove background, YouTube → MP3, video downloader, transcribe, compressors)
+    api/tools/…               tool endpoints (local only): status, yt-dlp jobs, background removal, transcripts, compressors
     actions.ts                every write (server actions)
     login/, auth/callback/    email code + link sign-in
     globals.css               Paper + Dusk design tokens and all styles
@@ -176,7 +178,7 @@ src/
     domain.ts                 types + quota/status logic (pure, testable)
     dates.ts                  string-based date math (timezone-safe)
     data/                     repo interface: supabase.ts (live) · demo.ts (sample)
-    tools/                    yt-dlp/ffmpeg discovery + job runner, background removal, transcripts (captions + Whisper)
+    tools/                    yt-dlp/ffmpeg discovery + job runner, background removal, transcripts (captions + Whisper), video/image compression
 scripts/setup-tools.mjs       downloads yt-dlp into .tools/ (runs after npm install)
 supabase/migrations/          schema + row-level security
 ```

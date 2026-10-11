@@ -585,3 +585,24 @@ a.tx-t:hover { background: color-mix(in srgb, var(--accent) 20%, transparent); }
   .lb-bar { flex-wrap: wrap; }
   .lb-name { max-width: 60vw; }
 }
+
+/* ─── Compressors ─────────────────────────────────────────────────────────── */
+.num-in { width: 86px; padding: 6px 9px; font-variant-numeric: tabular-nums; }
+.chip-btn { cursor: pointer; font-variant-numeric: tabular-nums; }
+.size-change { font-variant-numeric: tabular-nums; }
+.size-change b { color: var(--fg); font-weight: 600; }
+.size-change em { font-style: normal; font-weight: 600; margin-left: 6px; }
+.size-change em.good { color: var(--green-fg); }
+.size-change em.bad { color: var(--red-fg); }
+.range-row { display: flex; align-items: center; gap: 10px; }
+.range-row input[type="range"] { width: 220px; height: 20px; margin: 0; padding: 0; border: 0; background: none; box-shadow: none; outline: none; accent-color: var(--accent); }
+.range-row input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.size-row { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+.size-row .faint { margin-right: 4px; }
+.range-row output { min-width: 28px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.cut .stage.dim img { opacity: .9; }
+.cut .cm { display: flex; flex-wrap: wrap; gap: 4px 8px; padding: 0 12px 10px; font-size: 12px; color: var(--muted); }
+.cut .cm .note { flex-basis: 100%; }
+.sum-line { font-size: 13px; color: var(--muted); }
+.sum-line b { color: var(--green-fg); }
+@media (max-width: 760px) { .range-row input[type="range"] { width: 100%; } .range-row { width: 100%; } }

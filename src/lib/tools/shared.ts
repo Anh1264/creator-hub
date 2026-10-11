@@ -164,3 +164,71 @@ export function toParagraphs(segs: Segment[]): { start: number; text: string }[]
   if (cur) out.push({ start: cur.start, text: cur.parts.join(" ") });
   return out;
 }
+
+// ─── Compressors ────────────────────────────────────────────────────────────
+/** How hard to squeeze a video when no target size is set. CRF values are for H.264 (x264). */
+export const VIDEO_LEVELS = {
+  light: { label: "Light", crf: 20, note: "Hard to tell apart from the original." },
+  balanced: { label: "Balanced", crf: 24, note: "Good for posting. Usually 50–80% smaller." },
+  strong: { label: "Strong", crf: 28, note: "Noticeably softer, much smaller." },
+  max: { label: "Max", crf: 32, note: "Smallest file. Visible blur and blocks." },
+} as const;
+export type VideoLevel = keyof typeof VIDEO_LEVELS;
+
+export const TARGET_PRESETS_MB = [8, 10, 25, 50, 100] as const;
+export const SHORT_SIDES = [1080, 720, 480] as const;
+
+export interface VideoCompressOptions {
+  mode: "quality" | "size";
+  level: VideoLevel;
+  targetMB: number;
+  /** cap on the shorter side (1080 = "1080p" for both landscape and vertical); null = keep */
+  shortSide: number | null;
+  fps: 30 | 24 | null;
+  codec: "h264" | "hevc";
+  audio: "128" | "64" | "none";
+  speed: "fast" | "balanced" | "thorough";
+}
+
+export interface VideoCodecs {
+  h264: string | null; // encoder name, e.g. "libx264" or "h264_videotoolbox"
+  hevc: string | null;
+}
+
+export type CompressStatus = "queued" | "compressing" | "done" | "error" | "canceled";
+
+export interface CompressJob {
+  id: string;
+  name: string;
+  fileName: string | null; // output file name
+  label: string;
+  status: CompressStatus;
+  stage: string;
+  percent: number;
+  eta: number | null; // seconds
+  inputSize: number;
+  outputSize: number | null;
+  duration: number | null;
+  width: number | null;
+  height: number | null;
+  outWidth: number | null;
+  outHeight: number | null;
+  hasThumb: boolean;
+  /** the result came out bigger than the original (the source was already efficient) */
+  bigger: boolean;
+  /** a note about something the compressor changed on its own (e.g. lowered the resolution to hit the size) */
+  note: string | null;
+  error: string | null;
+  createdAt: number;
+  finishedAt: number | null;
+  tookMs: number | null;
+}
+
+export const IMAGE_FORMATS = ["same", "jpeg", "webp", "avif", "png"] as const;
+export type ImageFormat = (typeof IMAGE_FORMATS)[number];
+export const IMAGE_MAX_SIDES = [4096, 2560, 1920, 1280, 1080, 720] as const;
+
+export function pctSaved(before: number, after: number) {
+  if (!before) return 0;
+  return Math.round((1 - after / before) * 100);
+}

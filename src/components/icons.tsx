@@ -24,6 +24,8 @@ export const IconLogout = (p: P) => <svg {...base} {...p}><path d="M14 4h4a2 2 0
 export const IconArchive = (p: P) => <svg {...base} {...p}><rect x="3.5" y="4.5" width="17" height="4" rx="1" /><path d="M5 8.5V19a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8.5M10 12.5h4" /></svg>;
 export const IconTools = (p: P) => <svg {...base} {...p}><path d="M14.7 6.3a4 4 0 0 0-5.2 5.2L4 17l3 3 5.5-5.5a4 4 0 0 0 5.2-5.2l-2.4 2.4-2.6-.6-.6-2.6z" /></svg>;
 export const IconCutout = (p: P) => <svg {...base} {...p}><rect x="3.5" y="3.5" width="17" height="17" rx="2" strokeDasharray="2.5 2.5" /><circle cx="12" cy="10" r="3" /><path d="M6.5 18.5c1-2.8 3.1-4 5.5-4s4.5 1.2 5.5 4" /></svg>;
+export const IconShrinkVideo = (p: P) => <svg {...base} {...p}><rect x="3.5" y="5" width="17" height="14" rx="2" /><path d="M8 9l3 3M8 9v2.4M8 9h2.4M16 15l-3-3M16 15v-2.4M16 15h-2.4" /></svg>;
+export const IconShrinkImage = (p: P) => <svg {...base} {...p}><rect x="3.5" y="3.5" width="17" height="17" rx="2" /><circle cx="9" cy="9" r="1.6" /><path d="M20.5 15.5 16 11l-9 9" /></svg>;
 export const IconMusic = (p: P) => <svg {...base} {...p}><path d="M9 18V6l11-2v12" /><circle cx="6.5" cy="18" r="2.5" /><circle cx="17.5" cy="16" r="2.5" /></svg>;
 export const IconFilm = (p: P) => <svg {...base} {...p}><rect x="3.5" y="5" width="17" height="14" rx="2" /><path d="M7.5 5v14M16.5 5v14M3.5 9.5h4M3.5 14.5h4M16.5 9.5h4M16.5 14.5h4" /></svg>;
 export const IconDownload = (p: P) => <svg {...base} {...p}><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19.5h14" /></svg>;

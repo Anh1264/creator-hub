@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { IconCutout, IconFilm, IconMusic, IconTranscript } from "@/components/icons";
+import { IconCutout, IconFilm, IconMusic, IconShrinkImage, IconShrinkVideo, IconTranscript } from "@/components/icons";
 import { StatusPanel } from "@/components/tools/status-panel";
 
 export const metadata = { title: "Tools" };
@@ -9,6 +9,8 @@ const TOOLS = [
   { href: "/tools/youtube-mp3", Icon: IconMusic, name: "YouTube → MP3", text: "Grab the audio from a YouTube video as an MP3 with title, artist and cover art.", chips: ["Audio", "yt-dlp"] },
   { href: "/tools/video-download", Icon: IconFilm, name: "Video downloader", text: "Save videos from YouTube, TikTok, Instagram, X and 1,000+ other sites.", chips: ["Video", "yt-dlp"] },
   { href: "/tools/transcribe", Icon: IconTranscript, name: "Transcribe", text: "Get the transcript of a YouTube video, or of your own audio/video files. Copy, or save as TXT/SRT.", chips: ["Text", "Whisper"] },
+  { href: "/tools/compress-video", Icon: IconShrinkVideo, name: "Compress video", text: "Shrink a video by quality level or to a target size (8 MB, 25 MB…). Optional resize, 30 fps, H.265.", chips: ["Video", "ffmpeg"] },
+  { href: "/tools/compress-image", Icon: IconShrinkImage, name: "Compress images", text: "Shrink photos by quality or to a size in KB. Convert to JPG, WebP or AVIF, resize, strip location data.", chips: ["Images", "Batch"] },
 ];
 
 export default function ToolsPage() {
