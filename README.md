@@ -32,13 +32,14 @@ media later (section B).
 2. **SQL Editor → New query**: paste and run, one after the other, `supabase/migrations/20260928000000_init.sql`,
    `20261014000000_workspace.sql` (invites `vuquocanh12052007@gmail.com` as admin) and `20261015000000_media_bucket.sql`
    (creates the private `media` bucket).
-3. **Authentication → Emails → Templates**: in *Magic Link* **and** *Confirm signup*, add
-   `<p>Your code: <strong>{{ .Token }}</strong></p>` so people can sign in with a 6-digit code.
-4. **Authentication → Emails → SMTP**: the built-in sender only allows a few emails per hour. Before inviting other
-   creators, plug in a real sender (e.g. Resend's free tier: verify your domain, then paste its SMTP details here).
+3. **Sign-in is email + password.** Invited people click *Create account* on the login page; the server creates the
+   account (already confirmed), so no confirmation email is involved. Turn **Authentication → Sign In / Providers →
+   "Allow new users to sign up" off**: that blocks sign-ups straight through Supabase's API, and the app's own
+   *Create account* (service role, invite-checked) keeps working.
+4. **Authentication → Emails → SMTP** (optional): email is only used for *Forgot password?*. The built-in sender allows
+   just a few emails per hour, which is fine for resets; plug in a real sender (e.g. Resend) if that becomes a problem.
 5. **Authentication → URL Configuration**: Site URL = your Vercel URL; Redirect URLs = `https://<app>.vercel.app/**`
-   and `http://localhost:3000/**`. Leave "Allow new users to sign up" **on**: the invite list decides who gets in
-   (a database trigger rejects everyone else).
+   and `http://localhost:3000/**` (needed for the password-reset link).
 6. **Project Settings → API**: copy the Project URL, the publishable/anon key and the **service_role** key (secret).
 
 **B. Media storage**: nothing to do, the `media` bucket from A.2 is it. Limits on Supabase **Free**: 1 GB in total and
@@ -69,14 +70,15 @@ in Supabase Storage aren't moved automatically.
 4. Vercel's free Hobby plan is for non-commercial use; move to Pro if you start charging.
 
 **D. Your existing local data → your account**
-Sign in on the live site once (that creates your account), put the same keys in `.env.local` on the Mac, then:
+Create your account on the live site (*Create account*, with the invited email), put the same keys in `.env.local` on the Mac, then:
 ```bash
 node --env-file=.env.local scripts/import-local.mjs vuquocanh12052007@gmail.com
 ```
 It copies collabs, posts, Launchpad, hashtag sets, program tags, Characters, prompts and all media (to Supabase Storage,
 or R2). Files over the per-file limit are skipped and listed. Local files are untouched.
 
-**E. Inviting creators**: sidebar → **Invites** (admins only). Add their email, send them the link. They start with an empty workspace.
+**E. Inviting creators**: sidebar → **Invites** (admins only). Add their email and send them the site's link; they click
+*Create account* and pick a password. Only invited emails can create one. They start with an empty workspace.
 Each user gets 200 MB of media and 50 MB per file by default (2 GB / 500 MB with R2); change with `STORAGE_LIMIT_MB` / `MAX_UPLOAD_MB`.
 
 **Running locally with cloud data:** with the keys in `.env.local`, `npm run dev` on the Mac uses the same database and
@@ -213,7 +215,7 @@ src/
     api/pdfjs/…               serves pdf.js's worker, fonts and CMaps from node_modules
     api/tools/…               tool endpoints (local only): status, yt-dlp jobs, background removal, transcripts, compressors
     actions.ts                every write (server actions)
-    login/, auth/callback/    email code + link sign-in
+    login/, auth/callback/    email + password sign-in, invite-only Create account, Forgot password → login/reset
     globals.css               Paper + Dusk design tokens and all styles
   components/                 editor dialogs, checklist rows, tables, icons
   components/tools/           client UI for the tools (sign-pdf/: editor, signature pad, canvas helpers)

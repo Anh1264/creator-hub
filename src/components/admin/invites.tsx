@@ -15,7 +15,7 @@ export function InviteManager({ rows, me }: { rows: Row[]; me: string }) {
     e.preventDefault();
     start(async () => {
       const r = await addInvites(emails, note);
-      setMsg(r.ok ? { ok: true, text: "Invited. Send them the link to this site." } : { ok: false, text: r.error });
+      setMsg(r.ok ? { ok: true, text: "Invited. Send them this site\u2019s link: they click “Create account” and pick a password." } : { ok: false, text: r.error });
       if (r.ok) { setEmails(""); setNote(""); }
     });
   }

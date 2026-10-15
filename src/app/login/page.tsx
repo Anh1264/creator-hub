@@ -1,43 +1,81 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { IS_DEMO } from "@/lib/env";
-import { sendCode, verifyCode } from "./actions";
+import { sendReset, signIn, signUp } from "./actions";
 
 export const metadata = { title: "Sign in" };
+
+type Mode = "signin" | "signup" | "forgot" | "sent";
 
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   if (IS_DEMO) redirect("/");
   const sp = await searchParams;
-  const step = sp.step === "code" ? "code" : "email";
+  const mode: Mode = sp.mode === "signup" || sp.mode === "forgot" || sp.mode === "sent" ? sp.mode : "signin";
   const email = typeof sp.email === "string" ? sp.email : "";
   const error = typeof sp.error === "string" ? sp.error : "";
+  const withEmail = (m: Mode) => `/login?${new URLSearchParams(m === "signin" ? { email } : { mode: m, email })}`;
 
   return (
     <main className="login">
       <div className="login-card">
         <h1>Creator <em>Hub</em></h1>
-        {step === "email" ? (
-          <form action={sendCode} className="login-card">
-            <p className="muted">We&apos;ll email you a 6-digit code.</p>
+
+        {mode === "signin" && (
+          <form action={signIn} className="login-card">
+            <label className="field"><span>Email</span>
+              <input className="input" type="email" name="email" autoComplete="email" defaultValue={email} required autoFocus={!email} />
+            </label>
+            <label className="field"><span>Password</span>
+              <input className="input" type="password" name="password" autoComplete="current-password" required autoFocus={!!email} />
+            </label>
+            <button className="btn" type="submit">Sign in</button>
+            <div className="login-links">
+              <Link className="linkish" href={withEmail("forgot")}>Forgot password?</Link>
+              <Link className="linkish" href={withEmail("signup")}>New here? Create your account</Link>
+            </div>
+          </form>
+        )}
+
+        {mode === "signup" && (
+          <form action={signUp} className="login-card">
+            <p className="muted">Creator Hub is invite-only. Use the email you were invited with and pick a password.</p>
+            <label className="field"><span>Email</span>
+              <input className="input" type="email" name="email" autoComplete="email" defaultValue={email} required autoFocus={!email} />
+            </label>
+            <label className="field"><span>Password</span>
+              <input className="input" type="password" name="password" autoComplete="new-password" minLength={8} maxLength={72} required autoFocus={!!email} />
+            </label>
+            <p className="hint" style={{ marginTop: -6 }}>At least 8 characters.</p>
+            <button className="btn" type="submit">Create account</button>
+            <Link className="linkish" href={withEmail("signin")}>I already have an account</Link>
+          </form>
+        )}
+
+        {mode === "forgot" && (
+          <form action={sendReset} className="login-card">
+            <p className="muted">We&apos;ll email you a link to set a new password. Open it in this browser.</p>
             <label className="field"><span>Email</span>
               <input className="input" type="email" name="email" autoComplete="email" defaultValue={email} required autoFocus />
             </label>
-            <button className="btn" type="submit">Send code</button>
-          </form>
-        ) : (
-          <form action={verifyCode} className="login-card">
-            <p className="muted">A code is on its way to <b>{email}</b>. Enter it below, or open the link in the email on this device.</p>
-            <input type="hidden" name="email" value={email} />
-            <label className="field"><span>Code</span>
-              <input className="input" name="token" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9 ]{6,8}" required autoFocus />
-            </label>
-            <button className="btn" type="submit">Sign in</button>
-            <a className="linkish" href="/login">Use a different email</a>
+            <button className="btn" type="submit">Send reset link</button>
+            <Link className="linkish" href={withEmail("signin")}>Back to sign in</Link>
           </form>
         )}
+
+        {mode === "sent" && (
+          <div className="login-card">
+            <p className="muted">
+              If there&apos;s an account for <b>{email}</b>, a reset link is on its way. Open it in this browser to choose a new
+              password. It can take a minute; check spam too.
+            </p>
+            <Link className="linkish" href={withEmail("signin")}>Back to sign in</Link>
+          </div>
+        )}
+
         {error && (
           <p className="err">
-            {error === "link" ? "That link expired or was opened in a different browser. Use the code instead."
-              : error === "invite" ? "Creator Hub is invite-only for now, and that email isn't on the list yet. Ask for an invite, then try again."
+            {error === "link" ? "That link expired or was opened in a different browser. Ask for a new one with “Forgot password?”."
+              : error === "invite" ? "That email isn't on the invite list yet. Ask for an invite, then try again."
               : error}
           </p>
         )}
