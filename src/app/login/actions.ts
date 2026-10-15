@@ -52,6 +52,7 @@ export async function signUp(formData: FormData) {
   if (!validEmail(email)) back({ ...q, error: "Enter a valid email address." });
   if (password.length < MIN_PASSWORD) back({ ...q, error: `Use at least ${MIN_PASSWORD} characters for your password.` });
   if (password.length > 72) back({ ...q, error: "That password is too long (72 characters max)." });
+  if (password !== String(formData.get("confirm") ?? "")) back({ ...q, error: "The two passwords don't match." });
   if (!SUPABASE_SERVICE_KEY) back({ ...q, error: "Sign-up isn't set up on this server (SUPABASE_SERVICE_ROLE_KEY is missing)." });
   if (!(await isInvited(email))) back({ ...q, error: "invite" });
 

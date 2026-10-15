@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { IS_DEMO } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 import { setNewPassword } from "../actions";
+import { NewPasswordFields } from "../password-fields";
 
 export const metadata = { title: "New password" };
 
@@ -23,12 +24,7 @@ export default async function ResetPasswordPage({ searchParams }: PageProps<"/lo
           <form action={setNewPassword} className="login-card">
             <p className="muted">Choose a new password for <b>{email}</b>.</p>
             <input type="hidden" name="username" value={email} autoComplete="username" />
-            <label className="field"><span>New password</span>
-              <input className="input" type="password" name="password" autoComplete="new-password" minLength={8} maxLength={72} required autoFocus />
-            </label>
-            <label className="field"><span>Repeat it</span>
-              <input className="input" type="password" name="confirm" autoComplete="new-password" minLength={8} maxLength={72} required />
-            </label>
+            <NewPasswordFields autoFocus label="New password" />
             <button className="btn" type="submit">Save password</button>
           </form>
         ) : (

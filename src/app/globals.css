@@ -321,6 +321,17 @@ dialog.sheet::backdrop { background: var(--overlay); backdrop-filter: blur(2px);
 .login-card h1 { font: 400 40px/1.1 var(--font-newsreader), serif; }
 .login-card h1 em { color: var(--muted); }
 .login-links { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.pw { position: relative; display: block; }
+.pw .input { padding-right: 40px; }
+.pw-eye {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 32px; height: 30px; border: 0; border-radius: 6px;
+  background: none; color: var(--muted); display: grid; place-items: center;
+}
+.pw-eye:hover { color: var(--fg); background: var(--hover); }
+.pw-eye svg { width: 17px; height: 17px; }
+.pw-hint { margin-top: -6px; }
+.pw-hint.bad { color: var(--red-fg); }
+.pw-hint.good { color: var(--green-fg); }
 
 /* Banner / toast */
 .demo-banner { font-size: 12px; background: var(--yellow-bg); color: var(--yellow-fg); padding: 6px 16px; text-align: center; }

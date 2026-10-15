@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { IS_DEMO } from "@/lib/env";
 import { sendReset, signIn, signUp } from "./actions";
+import { NewPasswordFields, PasswordField } from "./password-fields";
 
 export const metadata = { title: "Sign in" };
 
@@ -25,9 +26,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
             <label className="field"><span>Email</span>
               <input className="input" type="email" name="email" autoComplete="email" defaultValue={email} required autoFocus={!email} />
             </label>
-            <label className="field"><span>Password</span>
-              <input className="input" type="password" name="password" autoComplete="current-password" required autoFocus={!!email} />
-            </label>
+            <PasswordField name="password" label="Password" autoComplete="current-password" autoFocus={!!email} />
             <button className="btn" type="submit">Sign in</button>
             <div className="login-links">
               <Link className="linkish" href={withEmail("forgot")}>Forgot password?</Link>
@@ -42,10 +41,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
             <label className="field"><span>Email</span>
               <input className="input" type="email" name="email" autoComplete="email" defaultValue={email} required autoFocus={!email} />
             </label>
-            <label className="field"><span>Password</span>
-              <input className="input" type="password" name="password" autoComplete="new-password" minLength={8} maxLength={72} required autoFocus={!!email} />
-            </label>
-            <p className="hint" style={{ marginTop: -6 }}>At least 8 characters.</p>
+            <NewPasswordFields autoFocus={!!email} />
             <button className="btn" type="submit">Create account</button>
             <Link className="linkish" href={withEmail("signin")}>I already have an account</Link>
           </form>
