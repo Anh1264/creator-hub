@@ -20,32 +20,73 @@ A yellow banner at the top means you're in demo mode. Demo data resets whenever 
 
 ---
 
-## 2. Go live with Supabase (≈15 minutes, one time)
+## 2. Go live: Supabase + Vercel (multi-user, invite-only)
 
-1. **Create a project** at [supabase.com](https://supabase.com). The free tier is enough. Pick the region closest to you, for example West US.
-2. **Create the tables:** open **SQL Editor**, then **New query**, paste all of `supabase/migrations/20260928000000_init.sql`, and click **Run**.
-3. **Make the login email include a code.** Go to **Authentication → Emails**. In **both** the *Magic Link* template and the *Confirm signup* template, add this line:
-   ```html
-   <p>Your code: <strong>{{ .Token }}</strong></p>
+Cloud mode = Supabase for login, the database (every user only sees their own rows) and media files (a private
+Storage bucket; the browser uploads straight to it with signed URLs), Vercel for hosting. The media **tools** stay
+local-only (hidden on Vercel), except **Sign PDF**, which runs in the browser. Cloudflare R2 is an optional swap for
+media later (section B).
+
+**A. Supabase** ([supabase.com](https://supabase.com), free tier is fine to start)
+1. New project (region close to your users, e.g. West US). Keep the database password.
+2. **SQL Editor → New query**: paste and run, one after the other, `supabase/migrations/20260928000000_init.sql`,
+   `20261014000000_workspace.sql` (invites `vuquocanh12052007@gmail.com` as admin) and `20261015000000_media_bucket.sql`
+   (creates the private `media` bucket).
+3. **Authentication → Emails → Templates**: in *Magic Link* **and** *Confirm signup*, add
+   `<p>Your code: <strong>{{ .Token }}</strong></p>` so people can sign in with a 6-digit code.
+4. **Authentication → Emails → SMTP**: the built-in sender only allows a few emails per hour. Before inviting other
+   creators, plug in a real sender (e.g. Resend's free tier: verify your domain, then paste its SMTP details here).
+5. **Authentication → URL Configuration**: Site URL = your Vercel URL; Redirect URLs = `https://<app>.vercel.app/**`
+   and `http://localhost:3000/**`. Leave "Allow new users to sign up" **on**: the invite list decides who gets in
+   (a database trigger rejects everyone else).
+6. **Project Settings → API**: copy the Project URL, the publishable/anon key and the **service_role** key (secret).
+
+**B. Media storage**: nothing to do, the `media` bucket from A.2 is it. Limits on Supabase **Free**: 1 GB in total and
+**50 MB per file**, so the app defaults to 200 MB per invited user and 50 MB per file (admins: no total cap). Free
+projects also **pause after a week with no activity** (un-pause in the dashboard). On **Pro** ($25/mo: 100 GB, big files,
+no pausing) raise the limits with `STORAGE_LIMIT_MB` / `MAX_UPLOAD_MB` in Vercel.
+
+<details><summary>Optional: Cloudflare R2 instead (10 GB free, no download fees, no 50 MB cap)</summary>
+
+Setting the four `R2_*` variables switches media to R2 (defaults become 2 GB per user, 500 MB per file). Files already
+in Supabase Storage aren't moved automatically.
+1. dash.cloudflare.com → **R2** → enable it (asks for a card) → create bucket `creator-hub-media`.
+2. Bucket → **Settings → CORS policy**, paste (with your real Vercel URL):
+   ```json
+   [{ "AllowedOrigins": ["https://<app>.vercel.app", "http://localhost:3000"],
+      "AllowedMethods": ["GET", "PUT", "HEAD"], "AllowedHeaders": ["*"], "MaxAgeSeconds": 3600 }]
    ```
-   With a code you can request login on the laptop and read the email on your phone. The link in the email works too, but only in the browser that asked for it.
-4. **Allow redirect URLs:** go to **Authentication → URL Configuration**. Set **Site URL** to your Vercel URL once you have one (step 4 below). Under **Redirect URLs**, add `http://localhost:3000/**` and `https://<your-app>.vercel.app/**`.
-5. **Create `.env.local`** by copying `.env.example`. Fill in the values from **Project Settings → API**:
-   ```
-   NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
-   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
-   ALLOWED_EMAILS=vuquocanh12052007@gmail.com
-   APP_TIMEZONE=America/Los_Angeles
-   ```
-   If your project only shows an **anon** key, use it as `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
-6. Run `npm run dev` and sign in with your email.
-7. **Lock it down:** after your first successful login, go to **Authentication → Sign In / Providers** and turn **off** "Allow new users to sign up". The app already rejects emails that aren't in `ALLOWED_EMAILS`, and row-level security means no one else could see your data anyway. Turning off signups closes the door completely.
+3. **R2 → Manage API tokens → Create token**: *Object Read & Write*, only this bucket. Add `R2_ACCOUNT_ID`,
+   `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` to Vercel and `.env.local`.
+</details>
+
+**C. Vercel**
+1. **Add New → Project** → import `creator-hub` from GitHub.
+2. **Environment Variables** (all environments): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`,
+   `SUPABASE_SERVICE_ROLE_KEY` (and the `R2_*` ones only if you chose R2).
+   Without the Supabase ones the site refuses to run (it never serves the login-less local mode publicly).
+3. Deploy, then put the URL into Supabase (A.5) (and the R2 CORS rule if you use R2).
+4. Vercel's free Hobby plan is for non-commercial use; move to Pro if you start charging.
+
+**D. Your existing local data → your account**
+Sign in on the live site once (that creates your account), put the same keys in `.env.local` on the Mac, then:
+```bash
+node --env-file=.env.local scripts/import-local.mjs vuquocanh12052007@gmail.com
+```
+It copies collabs, posts, Launchpad, hashtag sets, program tags, Characters, prompts and all media (to Supabase Storage,
+or R2). Files over the per-file limit are skipped and listed. Local files are untouched.
+
+**E. Inviting creators**: sidebar → **Invites** (admins only). Add their email, send them the link. They start with an empty workspace.
+Each user gets 200 MB of media and 50 MB per file by default (2 GB / 500 MB with R2); change with `STORAGE_LIMIT_MB` / `MAX_UPLOAD_MB`.
+
+**Running locally with cloud data:** with the keys in `.env.local`, `npm run dev` on the Mac uses the same database and
+media as the live site **and** keeps the local tools. Without them it's local mode (`.tools/data`, no login).
 
 ---
 
 ## 3. Two machines (Asus + Mac Mini) with Git
 
-The code lives on GitHub. The data lives in Supabase, so both machines and the live site always see the same collabs. Secrets live in `.env.local` on each machine and are **never committed**.
+The code lives on GitHub. In cloud mode the data lives in Supabase + R2, so both machines and the live site see the same data. Secrets live in `.env.local` on each machine and are **never committed**.
 
 ### First time, on the Asus (where the project is now)
 
@@ -92,21 +133,15 @@ Rules that prevent pain:
 
 ---
 
-## 4. Deploy to Vercel (so you can use it from your phone)
+## 4. Deploy to Vercel
 
-1. At [vercel.com](https://vercel.com), sign in with GitHub, click **Add New → Project**, and import `creator-hub`.
-2. Add the same four environment variables from `.env.local` under **Settings → Environment Variables**.
-3. Click **Deploy**. Add the resulting `https://<name>.vercel.app/**` URL to Supabase's redirect URLs (step 2.4 above).
-4. From then on, every `git push` to `main` deploys automatically.
-5. On your phone, open the URL and use **Add to Home Screen**.
-
-Optional: run `npm i -g vercel`, then `vercel link` and `vercel env pull .env.local`. That fetches the env file onto a new machine without copying it by hand.
+See section 2. After the first deploy, every `git push` to `main` deploys automatically. On your phone, open the URL and use **Add to Home Screen**.
 
 ---
 
-## 5. Tools (remove background · YouTube → MP3 · video downloader · transcribe · compressors)
+## 5. Tools (remove background · YouTube → MP3 · video downloader · transcribe · compressors · sign PDF)
 
-Under **Tools** in the sidebar. They run on **your own computer** — on Vercel the pages show a "run it locally" note instead.
+Under **Tools** in the sidebar. Most run on **your own computer** and are hidden on Vercel. **Sign PDF** runs entirely in the browser, so it works on the hosted site too.
 
 **Setup (once per machine):** `npm install`. That installs ffmpeg/ffprobe and the background-removal model from npm, then downloads the official standalone **yt-dlp** for your OS into `.tools/bin/` (checksum-verified). If that last step fails (offline, say), run `npm run tools:setup` later. The **Setup** box on `/tools` shows what's installed.
 
@@ -118,6 +153,7 @@ Under **Tools** in the sidebar. They run on **your own computer** — on Vercel 
 | **Transcribe** | Paste a link → transcript. Uses the video's own captions when it has them (instant), otherwise **Whisper** transcribes the audio on this computer (whisper.cpp, Metal GPU on the Mac mini). Also takes uploaded audio/video files. Copy, or save TXT / SRT / VTT; transcripts are kept in `.tools/transcripts/` until you delete them. |
 | **Compress video** | Drop videos → smaller MP4. Pick **how much** (Light / Balanced / Strong / Max, i.e. x264 CRF 20/24/28/32) or a **target size** in MB (two-pass; lowers the resolution itself if the size is too tight to stay sharp, and re-encodes once more if it overshoots). Optional max resolution, 30/24 fps cap, H.265 (≈40% smaller, uses whichever encoders this machine's ffmpeg has), audio 128/64 kbps or none. One video at a time. |
 | **Compress images** | Drop, choose or paste images → smaller files. **Quality** slider or **target size** in KB (searches for the highest quality that fits, shrinks the image if it must). Keep the format or convert to JPG / WebP / AVIF / PNG, cap the longest side, strip or keep EXIF/location. HEIC (iPhone) photos work on the Mac via `sips`. If the result would be bigger than the original, you get the original back. |
+| **Sign PDF** | Open a PDF → place your **signature**, **initials**, **text**, **today's date** and **✓ / ✗ / •** marks → drag to move, corner to resize, *All pages* for initials → **Download signed PDF** (`name-signed.pdf`). Make a signature by drawing (mouse, trackpad, finger, Apple Pencil pressure), typing (4 handwriting fonts, Vietnamese OK) or a photo of it on paper (the paper is removed). Saved signatures live in **this browser only** (localStorage), never on the server. Everything runs in the browser (pdf.js renders, pdf-lib writes); the PDF is never uploaded. Handles rotated pages and crop boxes. It's a visible e-signature, not a certificate-based digital signature. Locked (encrypted) PDFs: Print → Save as PDF first. |
 
 - **Whisper models** are downloaded once from the Transcribe page (*Large v3 Turbo* ≈574 MB, recommended; *Small* ≈190 MB for the laptop) into `.tools/models/`.
 - Finished files download to your browser's Downloads folder automatically. Working copies sit in `.tools/work/` and are deleted after 6 hours (or when you click ✕).
@@ -128,7 +164,11 @@ Under **Tools** in the sidebar. They run on **your own computer** — on Vercel 
 
 ---
 
-## 6. Launchpad & Characters
+## 6. Prompts
+
+`/prompts` (sidebar + phone tab bar): a library of the prompts behind your videos and images. Each entry has the prompt (plus an optional negative prompt), the model, video/image, the **links where the result was posted** (TikTok, Instagram, YouTube, X, Facebook, Threads, Pollo, Dreamina — detected from the URL), media (reference images, a cover frame, or the result clip), tags, which collabs it was for, and notes. Search across everything, filter by model/tag/favourites, copy a prompt in one click, or **New version** to iterate on one without touching the original. Stored in `.tools/data/prompts.json`; media use the same asset store as the Launchpad.
+
+## 7. Launchpad & Characters
 
 - **Launchpad** (`/launchpad`) — prep posts ahead and post them by hand when it's time.
   - Each post holds its media, one caption (with optional per-platform versions for X / Instagram / Facebook), hashtags, a first comment, a link and a time per platform.
@@ -167,18 +207,22 @@ src/
     (app)/page.tsx            overview (month view, ?m=YYYY-MM, ?view=table)
     (app)/collabs/…           collab list + collab page (6-month history)
     (app)/posts/page.tsx      all posts with filters
-    (app)/tools/…             Tools pages (remove background, YouTube → MP3, video downloader, transcribe, compressors)
+    (app)/prompts/…           prompt library (list + editor)
+    (app)/tools/(local)/…     Tools that need this computer (remove background, YouTube → MP3, video downloader, transcribe, compressors); 404 on Vercel
+    (app)/tools/sign-pdf/     Sign PDF (browser-only, also works hosted)
+    api/pdfjs/…               serves pdf.js's worker, fonts and CMaps from node_modules
     api/tools/…               tool endpoints (local only): status, yt-dlp jobs, background removal, transcripts, compressors
     actions.ts                every write (server actions)
     login/, auth/callback/    email code + link sign-in
     globals.css               Paper + Dusk design tokens and all styles
   components/                 editor dialogs, checklist rows, tables, icons
-  components/tools/           client UI for the tools
+  components/tools/           client UI for the tools (sign-pdf/: editor, signature pad, canvas helpers)
   lib/
     domain.ts                 types + quota/status logic (pure, testable)
     dates.ts                  string-based date math (timezone-safe)
     data/                     repo interface: supabase.ts (live) · demo.ts (sample)
     tools/                    yt-dlp/ffmpeg discovery + job runner, background removal, transcripts (captions + Whisper), video/image compression
+    pdf/                      Sign PDF data model (sign.ts) + export with pdf-lib (stamp.ts)
 scripts/setup-tools.mjs       downloads yt-dlp into .tools/ (runs after npm install)
 supabase/migrations/          schema + row-level security
 ```

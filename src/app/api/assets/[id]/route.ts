@@ -2,14 +2,20 @@ import fs from "node:fs";
 import { Readable } from "node:stream";
 import { isSignedIn } from "@/lib/auth";
 import { assetPath, getAsset, thumbPath } from "@/lib/launch/assets";
+import { assetRedirect } from "@/lib/media/assets";
 import { attachment } from "@/lib/tools/http";
 
 /** Serves a stored file. ?thumb=1 → preview image, ?download=1 → save-as. Supports Range (video seeking). */
 export async function GET(req: Request, ctx: RouteContext<"/api/assets/[id]">) {
   if (!(await isSignedIn())) return new Response("Signed out", { status: 401 });
-  const asset = getAsset((await ctx.params).id);
-  if (!asset) return new Response("Not found", { status: 404 });
+  const id = (await ctx.params).id;
   const sp = new URL(req.url).searchParams;
+  // Cloud mode: send the browser to a short-lived signed storage link (it handles Range requests for video seeking).
+  const cloud = await assetRedirect(id, { thumb: sp.has("thumb"), download: sp.has("download") });
+  if (cloud === "missing") return new Response("Not found", { status: 404 });
+  if (cloud) return new Response(null, { status: 302, headers: { Location: cloud, "Cache-Control": "private, max-age=300" } });
+  const asset = getAsset(id);
+  if (!asset) return new Response("Not found", { status: 404 });
   const thumb = sp.has("thumb") && asset.hasThumb;
   const file = thumb ? thumbPath(asset.id) : assetPath(asset);
   let size: number;

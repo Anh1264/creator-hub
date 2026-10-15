@@ -1,5 +1,5 @@
 import { CharacterAlbum } from "@/components/characters/gallery";
-import { listAssets } from "@/lib/launch/assets";
+import { listAssets } from "@/lib/media/assets";
 import { listAlbum } from "@/lib/launch/store";
 import { loadAll } from "@/lib/load";
 
@@ -7,7 +7,7 @@ export const metadata = { title: "Characters" };
 
 export default async function CharactersPage() {
   await loadAll(); // auth
-  const pics = listAssets(listAlbum().map((e) => e.assetId));
+  const pics = await listAssets((await listAlbum()).map((e) => e.assetId));
   return (
     <>
       <div className="crumbs"><span>Hub</span><span>/</span><b>Characters</b></div>

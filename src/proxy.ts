@@ -2,12 +2,16 @@
 // sends signed-out visitors to /login. (Next.js 16 renamed middleware → proxy.)
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { IS_DEMO, SUPABASE_KEY, SUPABASE_URL, isAllowedEmail } from "@/lib/env";
+import { IS_DEMO, SUPABASE_KEY, SUPABASE_URL } from "@/lib/env";
 
 const PUBLIC_PATHS = ["/login", "/auth"];
 
 export async function proxy(request: NextRequest) {
-  if (IS_DEMO) return NextResponse.next();
+  if (IS_DEMO) {
+    // Local mode has no login. Never serve it from Vercel: that would publish an open, shared workspace.
+    if (process.env.VERCEL) return new NextResponse("Creator Hub isn't set up yet: add the Supabase environment variables in Vercel.", { status: 503 });
+    return NextResponse.next();
+  }
 
   let response = NextResponse.next({ request });
   const supabase = createServerClient(SUPABASE_URL, SUPABASE_KEY, {
@@ -24,8 +28,8 @@ export async function proxy(request: NextRequest) {
 
   // getClaims() verifies the JWT — don't put code between client creation and this call.
   const { data } = await supabase.auth.getClaims();
-  const email = (data?.claims?.email as string | undefined) ?? "";
-  const signedIn = !!data?.claims && isAllowedEmail(email);
+  // Accounts only exist for invited emails (enforced by a database trigger), so a session is enough.
+  const signedIn = !!data?.claims?.sub;
 
   const path = request.nextUrl.pathname;
   const isPublic = PUBLIC_PATHS.some((p) => path === p || path.startsWith(p + "/"));

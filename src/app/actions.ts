@@ -1,10 +1,9 @@
 "use server";
 // All mutations go through here. Every action re-checks auth (the proxy alone isn't enough).
 import { revalidatePath } from "next/cache";
-import { requireUser } from "@/lib/auth";
+import { requireUser, userToday } from "@/lib/auth";
 import { repo } from "@/lib/data";
 import { isISODate, isMonthKey } from "@/lib/dates";
-import { today } from "@/lib/env";
 import { NEXT_STAGE, STAGES, type CollabInput, type PostInput, type Stage } from "@/lib/domain";
 
 export type ActionResult = { ok: true; id?: string } | { ok: false; error: string };
@@ -47,7 +46,7 @@ export async function savePost(fd: FormData): Promise<ActionResult> {
     collabId, title, stage,
     platform: str(fd, "platform").slice(0, 60),
     dueDate: dueDate || null,
-    postedAt: stage === "posted" ? postedAt || today() : null,
+    postedAt: stage === "posted" ? postedAt || (await userToday()) : null,
     url,
     notes: str(fd, "notes").slice(0, 4000),
   };
@@ -75,7 +74,7 @@ export async function markPosted(id: string): Promise<ActionResult> {
   await requireUser();
   const p = await repo.getPost(id);
   if (!p) return fail("Post not found.");
-  await repo.updatePost(id, { stage: "posted", postedAt: today() });
+  await repo.updatePost(id, { stage: "posted", postedAt: (await userToday()) });
   refresh();
   return { ok: true, id };
 }
@@ -87,7 +86,7 @@ export async function advanceStage(id: string): Promise<ActionResult> {
   if (!p) return fail("Post not found.");
   if (p.stage === "posted") return { ok: true, id };
   const next = NEXT_STAGE[p.stage];
-  await repo.updatePost(id, { stage: next, postedAt: next === "posted" ? today() : null });
+  await repo.updatePost(id, { stage: next, postedAt: next === "posted" ? (await userToday()) : null });
   refresh();
   return { ok: true, id };
 }
@@ -96,7 +95,7 @@ export async function advanceStage(id: string): Promise<ActionResult> {
 export async function setStage(id: string, stage: Stage): Promise<ActionResult> {
   await requireUser();
   if (!STAGES.includes(stage)) return fail("Unknown stage.");
-  await repo.updatePost(id, { stage, postedAt: stage === "posted" ? today() : null });
+  await repo.updatePost(id, { stage, postedAt: stage === "posted" ? (await userToday()) : null });
   refresh();
   return { ok: true, id };
 }

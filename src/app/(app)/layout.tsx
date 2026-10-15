@@ -3,15 +3,16 @@ import { cookies } from "next/headers";
 import { signOut } from "@/app/login/actions";
 import { Mono } from "@/components/bits";
 import { EditorProvider, NewCollabButton, NewPostButton } from "@/components/editor";
-import { IconCollabs, IconCutout, IconFilm, IconHome, IconLogout, IconMusic, IconPlus, IconPosts, IconRocket, IconShrinkImage, IconShrinkVideo, IconTools, IconTranscript, IconUsers } from "@/components/icons";
+import { IconCollabs, IconHome, IconLogout, IconPlus, IconPosts, IconPrompt, IconRocket, IconTools, IconUsers } from "@/components/icons";
+import { currentUser, userTimezone } from "@/lib/auth";
+import { toolsFor } from "@/components/tools/registry";
 import { DueWatcher } from "@/components/launch/due-watcher";
-import { APP_TIMEZONE } from "@/lib/env";
 import { listItems } from "@/lib/launch/store";
 import { itemState, nowLocal } from "@/lib/launch/types";
-import { NavLink, ThemeToggle } from "@/components/nav";
+import { NavLink, ThemeToggle, TimezoneCookie } from "@/components/nav";
 import { monthOf } from "@/lib/dates";
 import { byUrgency, isActiveIn, summarize } from "@/lib/domain";
-import { IS_DEMO } from "@/lib/env";
+import { IS_DEMO, IS_HOSTED } from "@/lib/env";
 import { loadAll } from "@/lib/load";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
@@ -21,8 +22,10 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     .filter((c) => isActiveIn(c, month))
     .map((c) => summarize(c, posts, month, today))
     .sort(byUrgency);
-  const now = nowLocal(APP_TIMEZONE);
-  const dueCount = listItems().filter((i) => itemState(i, now) === "due").length;
+  const now = nowLocal(await userTimezone());
+  const dueCount = (await listItems()).filter((i) => itemState(i, now) === "due").length;
+  const user = await currentUser();
+  const tools = toolsFor(IS_HOSTED); // hosted: only the browser tools (the rest need ffmpeg/yt-dlp/Whisper on your computer)
   const theme = (await cookies()).get("theme")?.value;
   const initialTheme = theme === "light" || theme === "dark" ? theme : "system";
 
@@ -35,12 +38,13 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       )}
       <div className="app">
         <aside className="side">
-          <div className="ws"><span className="ws-av">A</span>Aiden&apos;s Hub</div>
+          <div className="ws"><span className="ws-av">{(IS_DEMO ? "C" : user?.email.charAt(0) || "C").toUpperCase()}</span>Creator Hub</div>
           <NavLink href="/" exact><IconHome /><span>Overview</span></NavLink>
           <NavLink href="/posts"><IconPosts /><span>All posts</span></NavLink>
           <NavLink href="/collabs" exact><IconCollabs /><span>All collabs</span></NavLink>
           <NavLink href="/launchpad"><IconRocket /><span className="nav-label">Launchpad</span>{dueCount > 0 && <span className="mini due-badge">{dueCount} due</span>}</NavLink>
           <NavLink href="/characters"><IconUsers /><span className="nav-label">Characters</span></NavLink>
+          <NavLink href="/prompts"><IconPrompt data-tool="prompts" /><span className="nav-label">Prompts</span></NavLink>
 
           <div className="side-h">Collabs this month</div>
           {active.map((s) => (
@@ -52,18 +56,20 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
           ))}
           <NewCollabButton className="nav faint" label={<><span style={{ width: 20, textAlign: "center" }}>+</span><span>New collab</span></>} />
 
-          <Link href="/tools" className="side-h side-link">Tools</Link>
-          <NavLink href="/tools/remove-bg"><IconCutout /><span className="nav-label">Remove background</span></NavLink>
-          <NavLink href="/tools/youtube-mp3"><IconMusic /><span className="nav-label">YouTube → MP3</span></NavLink>
-          <NavLink href="/tools/video-download"><IconFilm /><span className="nav-label">Video downloader</span></NavLink>
-          <NavLink href="/tools/transcribe"><IconTranscript /><span className="nav-label">Transcribe</span></NavLink>
-          <NavLink href="/tools/compress-video"><IconShrinkVideo /><span className="nav-label">Compress video</span></NavLink>
-          <NavLink href="/tools/compress-image"><IconShrinkImage /><span className="nav-label">Compress images</span></NavLink>
+          {tools.length > 0 && (
+            <>
+              <Link href="/tools" className="side-h side-link">Tools</Link>
+              {tools.map(({ key, href, Icon, name }) => (
+                <NavLink key={key} href={href}><Icon data-tool={key} /><span className="nav-label">{name}</span></NavLink>
+              ))}
+            </>
+          )}
 
           <div className="side-foot">
+            {!IS_DEMO && user?.isAdmin && <NavLink href="/admin"><IconUsers /><span className="nav-label">Invites</span></NavLink>}
             <ThemeToggle initial={initialTheme} />
             {!IS_DEMO && (
-              <form action={signOut}>
+              <form action={signOut} title={user?.email}>
                 <button className="nav" type="submit"><IconLogout /><span>Sign out</span></button>
               </form>
             )}
@@ -79,9 +85,11 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         <NavLink href="/collabs" className=""><IconCollabs /><span>Collabs</span></NavLink>
         <NavLink href="/posts" className=""><IconPosts /><span>Posts</span></NavLink>
         <NavLink href="/characters" className=""><IconUsers /><span>Cast</span></NavLink>
-        <NavLink href="/tools" className=""><IconTools /><span>Tools</span></NavLink>
+        <NavLink href="/prompts" className=""><IconPrompt /><span>Prompts</span></NavLink>
+        {tools.length > 0 && <NavLink href="/tools" className=""><IconTools /><span>Tools</span></NavLink>}
       </nav>
       <DueWatcher />
+      <TimezoneCookie />
       <NewPostButton className="fab" label={<IconPlus aria-label="New post" />} />
     </EditorProvider>
   );

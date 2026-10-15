@@ -1,13 +1,14 @@
 "use server";
 // Launchpad + Characters album mutations. Every action re-checks auth.
 import { revalidatePath } from "next/cache";
-import { requireUser } from "@/lib/auth";
+import { requireUser, userToday } from "@/lib/auth";
 import { repo } from "@/lib/data";
-import { today } from "@/lib/env";
 import {
   addToAlbum as addPics, deleteItem as delItem, deleteSet as delSet, duplicateItem as dup, getItem, patchPlatform,
   removeFromAlbum as removePic, saveSet as putSet, setProgramTags as putTags, upsertItem,
 } from "@/lib/launch/store";
+import { listAssets } from "@/lib/media/assets";
+import { housekeeping } from "@/lib/media/housekeeping";
 import { PLATFORMS, PLATFORM_META, parseTags, type PlatformKey, type QueueItem } from "@/lib/launch/types";
 
 type Result<T = undefined> = { ok: true; data?: T } | { ok: false; error: string };
@@ -33,7 +34,7 @@ export async function saveItem(input: QueueItem): Promise<Result<{ id: string }>
     hashtags: parseTags((input.hashtags ?? []).join(" ")).slice(0, 60),
     firstComment: clip(input.firstComment, 3000),
     link: clip(input.link, 500).trim(),
-    assetIds: (input.assetIds ?? []).filter((x) => typeof x === "string").slice(0, 20),
+    assetIds: (await listAssets((input.assetIds ?? []).slice(0, 20))).map((a) => a.id),
     collabIds: (input.collabIds ?? []).filter((id) => collabs.some((c) => c.id === id)),
     characterIds: (input.characterIds ?? []).filter((x) => typeof x === "string"),
     ready: !!input.ready,
@@ -51,21 +52,22 @@ export async function saveItem(input: QueueItem): Promise<Result<{ id: string }>
   }
   if (!item.title && !item.caption && !item.assetIds.length) return fail("Add a title, a caption or some media first.");
   if (!item.title) item.title = item.caption.split("\n")[0].slice(0, 80) || "Untitled post";
-  const saved = upsertItem(item);
+  const saved = await upsertItem(item);
+  void housekeeping();
   refresh();
   return { ok: true, data: { id: saved.id } };
 }
 
 export async function deleteItem(id: string): Promise<Result> {
   await requireUser();
-  delItem(id);
+  await delItem(id);
   refresh();
   return { ok: true };
 }
 
 export async function duplicateItem(id: string): Promise<Result<{ id: string }>> {
   await requireUser();
-  const copy = dup(id);
+  const copy = await dup(id);
   if (!copy) return fail("Post not found.");
   refresh();
   return { ok: true, data: { id: copy.id } };
@@ -77,8 +79,9 @@ export async function duplicateItem(id: string): Promise<Result<{ id: string }>>
  */
 export async function setPosted(id: string, p: PlatformKey, posted: boolean, rawUrl = ""): Promise<Result> {
   await requireUser();
-  const item = getItem(id);
+  const item = await getItem(id);
   if (!item || !PLATFORMS.includes(p)) return fail("Post not found.");
+  const today = await userToday();
   const url = cleanUrl(rawUrl);
   if (rawUrl.trim() && !url) return fail("That link doesn't look like a URL.");
   const plan = item.platforms[p];
@@ -89,20 +92,20 @@ export async function setPosted(id: string, p: PlatformKey, posted: boolean, raw
         if (!(await repo.getCollab(collabId))) continue;
         const post = await repo.createPost({
           collabId, title: item.title, platform: PLATFORM_META[p].label, stage: "posted",
-          dueDate: plan.scheduledAt?.slice(0, 10) ?? null, postedAt: today(), url, notes: "From Launchpad",
+          dueDate: plan.scheduledAt?.slice(0, 10) ?? null, postedAt: today, url, notes: "From Launchpad",
         });
         logged.push(post.id);
       }
     } else {
       for (const pid of plan.loggedPostIds) await repo.updatePost(pid, { url });
     }
-    patchPlatform(id, p, {
+    await patchPlatform(id, p, {
       status: "posted", postedAt: plan.postedAt ?? new Date().toISOString(), url,
       loggedPostIds: plan.status === "posted" ? plan.loggedPostIds : logged,
     });
   } else {
     for (const pid of plan.loggedPostIds) await repo.deletePost(pid);
-    patchPlatform(id, p, { status: "pending", postedAt: null, url: null, loggedPostIds: [] });
+    await patchPlatform(id, p, { status: "pending", postedAt: null, url: null, loggedPostIds: [] });
   }
   refresh();
   return { ok: true };
@@ -110,7 +113,7 @@ export async function setPosted(id: string, p: PlatformKey, posted: boolean, raw
 
 export async function skipPlatform(id: string, p: PlatformKey, skip: boolean): Promise<Result> {
   await requireUser();
-  if (!patchPlatform(id, p, { status: skip ? "skipped" : "pending" })) return fail("Post not found.");
+  if (!(await patchPlatform(id, p, { status: skip ? "skipped" : "pending" }))) return fail("Post not found.");
   refresh();
   return { ok: true };
 }
@@ -120,14 +123,14 @@ export async function saveHashtagSet(input: { id?: string; name: string; tags: s
   const name = clip(input.name, 60).trim();
   const tags = parseTags(input.tags).slice(0, 60);
   if (!name || !tags.length) return fail("A set needs a name and at least one tag.");
-  putSet({ id: input.id ?? "", name, tags });
+  await putSet({ id: input.id ?? "", name, tags });
   refresh();
   return { ok: true };
 }
 
 export async function deleteHashtagSet(id: string): Promise<Result> {
   await requireUser();
-  delSet(id);
+  await delSet(id);
   refresh();
   return { ok: true };
 }
@@ -135,7 +138,7 @@ export async function deleteHashtagSet(id: string): Promise<Result> {
 export async function saveProgramTags(collabId: string, tags: string): Promise<Result> {
   await requireUser();
   if (!(await repo.getCollab(collabId))) return fail("Collab not found.");
-  putTags(collabId, parseTags(tags).slice(0, 20));
+  await putTags(collabId, parseTags(tags).slice(0, 20));
   refresh();
   return { ok: true };
 }
@@ -143,14 +146,15 @@ export async function saveProgramTags(collabId: string, tags: string): Promise<R
 // ─── Characters album ───────────────────────────────────────────────────────
 export async function addToAlbum(assetIds: string[]): Promise<Result> {
   await requireUser();
-  addPics((assetIds ?? []).filter((x) => typeof x === "string" && /^[a-f0-9]{16}$/.test(x)));
+  await addPics((await listAssets(assetIds ?? [])).map((a) => a.id));
+  void housekeeping();
   refresh();
   return { ok: true };
 }
 
 export async function removeFromAlbum(assetId: string): Promise<Result> {
   await requireUser();
-  removePic(assetId);
+  await removePic(assetId);
   refresh();
   return { ok: true };
 }

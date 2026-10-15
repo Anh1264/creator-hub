@@ -1,18 +1,18 @@
 # Creator Hub — project context (read this first)
 
-_Last updated: 2026-10-11. Update this file at the end of any session that changes the app, its data, or the plan._
+_Last updated: 2026-10-15._ Update this file at the end of any session that changes the app, its data, or the plan._
 _Two copies: this file in the repo root, and `claude/PROJECT-CONTEXT.md` in the "creator-hub" Claude project. Keep them identical._
 
 ## What it is
 Aiden's personal internal web app ("Aiden's Hub") for:
 1. **Tracking brand/platform collab posting quotas** (Creative Partner Programs — monthly video/post requirements).
-2. **Built-in creator tools** that replace websites he used to visit (background remover, YouTube→MP3, video downloader, transcriber).
+2. **Built-in creator tools** that replace websites he used to visit (background remover, YouTube→MP3, video downloader, transcriber, compressors, Sign PDF).
 
-Single user. Owner: Aiden Vu (vuquocanh12052007@gmail.com).
+Owner: Aiden Vu (vuquocanh12052007@gmail.com). **Since 2026-10-14 it's becoming a multi-user product**: Aiden wants to host it and let other creators use it, each with their own data (invite-only beta). See "Cloud mode" below.
 
 ## Where things live
 - **Code (Mac mini M4):** `/Users/quocanh/Documents/AI_Work/creator-hub`. This is the folder connected to Cowork sessions. In device_bash it's `$HOME/mnt/creator-hub`.
-- **GitHub:** `https://github.com/Anh1264/creator-hub`. Pushed up to `2c43d6d` "Launchpad, Characters, Tools, Transcribe" (2026-10-07). The 2026-10-11 compressor work is **uncommitted** until Aiden commits it.
+- **GitHub:** `https://github.com/Anh1264/creator-hub`. Pushed up to `d514603` "Video + image compressors, fix 10MB upload cap". The tool colours + Prompts work (2026-10-11) is **uncommitted** until Aiden commits it.
 - **Second machine:** Asus Zenbook (Windows), which syncs via GitHub. Code must stay cross-platform (Windows + macOS).
 - Repo docs: `README.md` (setup, tools, project map) and `AGENTS.md` (coding rules; `CLAUDE.md` just includes it).
 
@@ -28,6 +28,20 @@ Single user. Owner: Aiden Vu (vuquocanh12052007@gmail.com).
 - Data access goes through `src/lib/data` (repo). Domain logic is in `src/lib/domain.ts`.
 - Mutations are server actions in `src/app/actions.ts` (each calls `requireUser()`).
 - Run locally with `npm install` then `npm run dev`, at http://localhost:3000. Before pushing: `npm run typecheck && npm run lint && npm run build`.
+
+## Cloud mode (multi-user) — built 2026-10-14, not deployed yet
+- **Decided with Aiden:** Vercel + Supabase (**media in Supabase Storage since 2026-10-15**: Aiden didn't want to learn R2; R2 stays as an optional backend). Invite-only beta. The tools are local-only (hidden on Vercel: they live in the `(app)/tools/(local)/` route group whose `layout.tsx` 404s when `VERCEL` is set), **except Sign PDF**, which runs in the browser and is shown hosted too (`browser: true` in the registry, `toolsFor(IS_HOSTED)`). YouTube→MP3 / video downloader stay private to Aiden's Mac (ToS/DMCA risk, and YouTube blocks cloud IPs). Phase 2: port remove-bg + compressors to run in the browser.
+- **Modes** (`src/lib/env.ts`): no Supabase env → local mode (`.tools/data`, no login, refuses to run on Vercel: proxy returns 503 and `currentUser()` returns null). Supabase env → cloud data. `IS_HOSTED` (= `VERCEL`) hides tools. On the Mac with cloud keys in `.env.local` = cloud data + local tools.
+- **Schema:** `supabase/migrations/20261014000000_workspace.sql` → `invites` (service role only), `profiles` (is_admin, program_tags_seeded; users can only update display_name/program_tags_seeded), `assets` (metadata; 16-hex ids; bytes in storage at `<user_id>/<id>/original.ext` + `thumb.jpg`), `launch_items` (platforms jsonb), `hashtag_sets`, `program_tags`, `album`, `prompts` (`prompts_touch` keeps updated_at when only `favorite` changes). RLS = own rows; program_tags/album also check the referenced collab/asset is yours. Trigger `enforce_invite` (BEFORE INSERT on auth.users) rejects uninvited emails; `handle_new_user` creates the profile (is_admin from the invite). Seeds Aiden's invite as admin.
+  - Tested on Postgres 16 with Supabase-like stubs: RLS isolation, invite gate, is_admin escalation blocked, cascade delete.
+- **Data layer:** `lib/launch/store.ts` and `lib/prompts/store.ts` are async facades over `local-store.ts` / `cloud-store.ts`. Media: `lib/media/assets.ts` (listAssets/startUpload/finishUpload/deleteAssets/sweepOrphans/assetRedirect) + `lib/media/storage.ts`, which picks **`supabase-storage.ts`** (default: private bucket `media` from `supabase/migrations/20261015000000_media_bucket.sql`, service-role client, `createSignedUploadUrl` / `createSignedUrl` / `info` / `remove`; no storage policies needed because only the server touches it after `assets` RLS) or **`r2.ts`** when the `R2_*` env vars are set (aws4fetch, presigned URLs; `R2_ENDPOINT` override for tests). Upload tickets carry `headers` (Supabase: the publishable `apikey`). Download names are folded to ASCII for Supabase because supabase-js `encodeURI`s the signed URL (double-encodes non-ASCII). `lib/media/housekeeping.ts` sweeps unreferenced uploads >24 h (called after saves).
+- **Uploads (cloud):** `POST /api/assets/upload` → signed PUT URLs for file + thumb → browser PUTs to storage (XHR progress) and renders its own ≤640 px JPEG preview + size/duration (`components/launch/uploader.tsx`) → `POST /api/assets/[id]/complete` (checks the object exists). `GET /api/assets/[id]` → 302 to a signed GET. Quota per non-admin: `STORAGE_LIMIT_MB` / `MAX_UPLOAD_MB`, defaults **200 MB / 50 MB on Supabase** (Free = 1 GB total, 50 MB per file, pauses after 7 idle days), 2048 / 500 with R2. A 413 from storage shows a "compress it first" message. R2 (if used) needs a CORS rule (README §2.B).
+- **Auth:** email code (Supabase OTP). `login/actions.ts` checks `invites` with the service-role client (friendly "invite-only" message). Proxy: any session = signed in. `lib/auth.ts`: `currentUser()` {id,email,isAdmin}, `userTimezone()` from a `tz` cookie set by `TimezoneCookie` (nav.tsx), `userToday()`. `ALLOWED_EMAILS` is gone (`ADMIN_EMAILS` only as a fallback when no service key).
+- **Admin:** `/admin` ("Invites" in the sidebar for admins): add/remove invites, see who joined + storage used, optionally delete an account (cascades all data). `app/admin-actions.ts`.
+- **Import:** `scripts/import-local.mjs` copies `.tools/data` (collabs, posts with id remapping, Launchpad incl. loggedPostIds, sets, program tags, album, prompts, media → Supabase Storage or R2; files over MAX_UPLOAD_MB are skipped and listed) into a user (must have signed in once). Refuses if the account already has collabs (`--force`).
+- **End-to-end tested in the cloud sandbox** with PostgREST + a fake GoTrue `/user` endpoint + moto S3: two users, uploads (image + video), prompts, album, Launchpad edit, admin invites, B can't see or fetch A's data/media, import script. Not tested: real Supabase email delivery, real Supabase Storage (the storage module was only checked against a mock of the storage API), real R2, Vercel build/runtime. Headless Chromium can't decode H.264, so video previews weren't verified (real browsers can).
+- **Waiting on Aiden:** create Supabase project + run the three migrations (init, workspace, media_bucket) + email template/SMTP; import the repo in Vercel and add env vars (Claude's Vercel connector has no write access to his scope); sign in once; run the import script. Then commit/push.
+- Known gaps: Supabase built-in email is rate-limited (needs SMTP, e.g. Resend, before inviting people); Vercel Hobby is non-commercial; no account settings page yet (display name unused); new users start empty (no CPP templates).
 
 ## Collab data (seeded in demo.ts, from Gmail, verified 2026-10-01)
 All placeholder data was removed. Tracking starts **2026-10**; real join dates are in each collab's notes. No posts are seeded.
@@ -58,8 +72,21 @@ All placeholder data was removed. Tracking starts **2026-10**; real join dates a
 - Data: `characters.json` = `{ album: [{ assetId, addedAt }] }`. Old character sheets were migrated by keeping their images. `/characters/[id]` redirects to the album.
 - Code: `components/characters/gallery.tsx` (`CharacterAlbum`), actions `addToAlbum` / `removeFromAlbum` in `launch-actions.ts`. `QueueItem.characterIds` still exists in the type but isn't used in the UI.
 
+## Prompts (`/prompts`) — built 2026-10-11
+- Aiden asked to "store my prompts and link that to the video I created" via its social media link.
+- `PromptEntry` (`src/lib/prompts/types.ts`): title, kind video/image, model (free text + suggestions), prompt, negative, links `{url, platform}` (platform detected from the host), assetIds (shared asset store; first image = cover), tags, collabIds, notes, favorite.
+- Store `src/lib/prompts/store.ts` → `.tools/data/prompts.json`. **The Launchpad orphan sweep includes `promptAssetIds()`**, otherwise prompt media would be deleted after 24 h.
+- Actions `src/app/prompt-actions.ts`: savePrompt (title defaults to the first words of the prompt), deletePrompt (deletes its media), toggleFavorite, newVersion (copy titled "(v2)", "(v3)"… without links/media).
+- UI: `components/prompts/{library,editor,copy}`. Library = search + kind/favourite/model/tag chips + cards (cover, excerpt, platform link pills, Copy prompt). Editor = monospace prompt box with Copy, links list (paste several at once), media uploader with "Make cover", tags, "Made for" collab chips, notes, ⌘S.
+- Nav: sidebar under Characters, and a 7th phone tab ("Prompts"); checked at 390 px wide.
+
+## Per-tool colours — 2026-10-11
+- Each tool page (and Prompts) has its own colour and cover pattern via `ToolPage` (`components/tools/tool-page.tsx`) + `components/tools/registry.tsx` (single list of tools used by the sidebar, the /tools gallery and the pages).
+- Colours in `globals.css` under `[data-tool="…"]` with a light (`--tool-l`) and dark (`--tool-d`) version, mixed by `--dark` (0% Paper / 100% Dusk). Inside `.tool-page` the colour becomes `--accent`, so buttons, drop zones, focus rings and bars follow it.
+- Remove bg = violet checkerboard · MP3 = red equaliser bars · Video downloader = blue film strip · Transcribe = green ruled paper · Compress video = pink rings · Compress images = teal pixel grid · Prompts = gold dots · Sign PDF = slate cheque cross-hatch. Sidebar icons and gallery cards use the same colours.
+
 ## Tools (Tools section in the sidebar; `/tools`)
-Local-only: they run on the user's own computer. On Vercel they return 501 and show a "run locally" note. Everything they write stays inside `.tools/` (git-ignored).
+All but Sign PDF are local-only: they run on the user's own computer, live in `src/app/(app)/tools/(local)/` and 404 on Vercel (their APIs return 501). Everything they write stays inside `.tools/` (git-ignored).
 
 - **Remove background** (`/tools/remove-bg`): `@imgly/background-removal-node` (ISNet, models bundled in npm, via onnxruntime-node).
   - Server route `/api/tools/remove-bg` returns a transparent PNG; the client can composite a white, black or custom background.
@@ -93,6 +120,15 @@ Local-only: they run on the user's own computer. On Vercel they return 501 and s
   - **HEIC:** sharp's prebuilt can't decode it → on macOS converts with `/usr/bin/sips`; on Windows it errors with a clear message.
   - Same format + no resize + result not smaller → returns the original bytes (`X-Kept-Original`). Animated GIF stays animated (GIF/WebP). One image at a time server-side.
   - Client: batch grid like Remove background, hold to compare, totals, "Redo with new settings", Save all.
+- **Sign PDF** (`/tools/sign-pdf`): built 2026-10-15. **Browser-only**, works hosted; the PDF is never uploaded.
+  - pdf.js (`pdfjs-dist` **6.3.289, pinned, legacy build** for older Safari/iOS) renders pages; **pdf-lib** 1.17.1 writes the result. Both are dynamically imported, so they only load on this page.
+  - pdf.js worker + CMaps + standard fonts + wasm decoders are served from `node_modules` by `src/app/api/pdfjs/[...path]/route.ts` (whitelisted paths, no auth: public library files; `outputFileTracingIncludes` in next.config.ts keeps them in the Vercel bundle).
+  - Model `src/lib/pdf/sign.ts`: items stored in **visual page space as fractions** (x, y, w, h of the rotated page). Export `src/lib/pdf/stamp.ts` maps back with the inverse of pdf.js `viewport.transform` (handles /Rotate 90/180/270 and CropBox offsets; draws rotated so it looks upright). Verified on rotated + cropped pages.
+  - Item types: image (signature/initials PNG), text (Helvetica, vector; **falls back to a 6× PNG when the text has non-WinAnsi chars**, e.g. Vietnamese), mark (✓ ✗ • as vector SVG paths).
+  - UI `src/components/tools/sign-pdf/`: `index.tsx` (editor: sticky toolbar, pick → click to place, drag/resize, floating item bar with Edit / ink black-blue / **All pages** / delete, ⌘Z undo, arrows nudge, ⌫ delete, Esc), `pad.tsx` (new signature/initials: Draw with velocity/pressure width, Type in 4 handwriting fonts from `fonts.ts` (Ms Madi, Great Vibes, Dancing Script, Square Peg; all with Vietnamese), Upload photo → paper removed by luminance threshold), `ink.ts` (trim, photo→ink, text→PNG, saved-signature store).
+  - Saved signatures: **localStorage `hub.sign.marks.v1`** (per browser, via `useSyncExternalStore`, synced across tabs). Deliberately not in Supabase (privacy).
+  - Pages render lazily (IntersectionObserver, 1200 px margin) and free their canvas when far off-screen. Encrypted PDFs are refused with a "Print → Save as PDF first" message (pdf-lib can't write them). Warns before leaving with undownloaded signatures. The new-post FAB is hidden on this page.
+  - It's a visible e-signature, not a certificate-based (PAdES) digital signature; the page says so.
 - **Setup:**
   - `npm install` runs `scripts/setup-tools.mjs` (postinstall), which downloads the official standalone yt-dlp into `.tools/bin` (SHA-256 verified) and links the npm ffmpeg/ffprobe (`@ffmpeg-installer`, `@ffprobe-installer`) into `.tools/ffmpeg`.
   - `npm run tools:update` updates yt-dlp; there's also an "Update yt-dlp" button on `/tools`.
@@ -129,11 +165,21 @@ Local-only: they run on the user's own computer. On Vercel they return 501 and s
 - Compressors tested in the cloud container (Linux ffmpeg 4.1, synthetic media): quality levels, 2-pass size targets (1 MB / 2 MB hit), H.265 overshoot → re-fit, auto-resolution, rotated phone video, invalid file, image quality/target/AVIF/WebP/PNG/EXIF-rotation. **Not yet run on the Mac** (encoder set, `sips` HEIC path) or Windows.
 - Also fixed the Turbopack "whole project traced" warning at `media.ts:254` (`turbopackIgnore`).
 
+## Hosting plan (proposed to Aiden 2026-10-11, awaiting his go)
+- Constraint: the Tools need a real computer (ffmpeg, yt-dlp, Whisper, onnxruntime), so they stay on the Mac mini whatever the host.
+- **Recommended: all Cloudflare, two phases.**
+  - **Phase 1:** the Mac mini runs the hub (`npm run build && npm start`, kept alive). **Cloudflare Tunnel** publishes it at e.g. `hub.<domain>`, and **Cloudflare Access** (email one-time PIN, only Aiden's address) sits in front. No code or data changes; everything works from the phone. Downside: Mac must be on.
+  - **Phase 2:** app on **Cloudflare Workers** via `@opennextjs/cloudflare` (supports Next 16, but **not Node middleware**, so `src/proxy.ts` goes away and Access does auth). Data → **D1**, media → **R2** (10 GB free, no egress fees). Tools pages hand off to the Mac through the tunnel. Needs Workers Paid ($5/mo; the free plan's 3 MiB Worker limit is too small).
+  - Rejected: Vercel Hobby (non-commercial only; 4.5 MB function body limit) + Supabase free (1 GB storage, pauses after 7 days idle). The existing Supabase repo code would be unused under this plan.
+- Waiting on Aiden: does he own a domain (Cloudflare Registrar if not), Cloudflare account, and a "go" for phase 1.
+
 ## Open items / next steps
 - [ ] Aiden: re-run the mixed-language video with Language = Auto-detect (mixed OK) and check the English parts. If a part is still wrong, set Language explicitly.
 - [ ] Aiden: try both compressors on real footage/photos on the Mac (esp. a big iPhone video and a HEIC photo), then commit + push.
+- [ ] Aiden: `npm install` (adds pdf-lib + pdfjs-dist), then try Sign PDF on a real contract in Safari and Chrome, incl. drawing with a finger on the phone. Then commit + push. Note the tool folders moved into `src/app/(app)/tools/(local)/` (git sees renames; URLs unchanged).
+- [ ] Optional Sign PDF follow-ups: fill existing PDF form fields, certificate-based signing, remember last ink/size.
 - [ ] Remove `Claude outputs/` from the repo (`git rm -r --cached "Claude outputs"` + .gitignore).
-- [ ] **Decide storage + hosting** (Aiden deferred this, 2026-10-05). Options: Supabase (Postgres + Storage; the free storage tier is small for video), or keep local on the Mac mini and reach it from the phone over Wi-Fi/Tailscale. Migrating means porting `.tools/data/*.json` + `assets/` and adding a Supabase repo for Launchpad/characters (schema migration in `supabase/migrations/`).
+- [x] ~~Decide storage + hosting~~ → Vercel + Supabase (+ Supabase Storage for media since 2026-10-15), multi-user (2026-10-14). Old notes: Options: Supabase (Postgres + Storage; the free storage tier is small for video), or keep local on the Mac mini and reach it from the phone over Wi-Fi/Tailscale. Migrating means porting `.tools/data/*.json` + `assets/` and adding a Supabase repo for Launchpad/characters (schema migration in `supabase/migrations/`).
 - [ ] Optional: deploy to Vercel (README §4). The tools stay local-only. **Launchpad uploads also need real storage before hosting.**
 - [ ] Launchpad phase 2/3 ideas not built yet: deadline reminders for program submissions (Dreamina 7-day performance claim, Kinovi monthly form), asset fixes (reframe 9:16/4:5, compress, cover frame), batch scheduling, post history with view counts, phone access over the LAN.
 - [ ] Suggested next tools, agreed as highest value but not built yet:
@@ -150,3 +196,7 @@ Local-only: they run on the user's own computer. On Vercel they return 501 and s
 - **2026-10-05:** Characters simplified to an image-only photo album (his request).
 - **2026-10-05:** Transcribe fix: per-window language detection for mixed-language audio, silent-window skipping, anti-repetition (maxContext 0, temperature fallback, cleanLoops), and multiple languages shown (e.g. "Korean + English").
 - **2026-10-11:** Added **Compress video** (quality levels or target MB, 2-pass, auto-resolution, H.264/H.265, fps/audio/speed) and **Compress images** (quality or target KB, JPG/WebP/AVIF/PNG, resize, EXIF, HEIC via sips). Proxy no longer runs on `/api/*` (fixes 10 MB upload truncation). README updated.
+- **2026-10-11:** Added per-tool colours/cover patterns (`ToolPage` + registry) and the **Prompts** library (prompts ↔ posted links, media, tags, collabs, versions). Proposed the Cloudflare hosting plan.
+- **2026-10-14:** Multi-user cloud mode: Supabase schema + RLS + invite-only sign-up, async local/cloud stores for Launchpad/Prompts/Characters/media, R2 direct uploads, /admin invites, per-browser timezone, import script, tools hidden on Vercel. Hosting plan changed from Cloudflare Tunnel to Vercel + Supabase + R2.
+- **2026-10-15:** Added **Sign PDF** (browser-only: pdf.js + pdf-lib; draw/type/photo signatures saved per browser, initials, text, date, ✓/✗/• marks, all-pages, undo, rotated pages). Local-only tools moved into the `tools/(local)` route group so Sign PDF also works on Vercel; sidebar/tab bar/`/tools` show `toolsFor(IS_HOSTED)`. New `/api/pdfjs/*` route.
+- **2026-10-15:** Media storage switched to **Supabase Storage** by default (`lib/media/storage.ts` → `supabase-storage.ts`; R2 only when `R2_*` is set), new migration `20261015000000_media_bucket.sql`, limits default to 200 MB/user + 50 MB/file, import script uploads to Supabase Storage. Next.js 16.3.6 → **16.3.8** (6 security advisories).

@@ -2,24 +2,24 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ItemEditor } from "@/components/launch/editor";
 import { PostKit } from "@/components/launch/kit";
-import { APP_TIMEZONE } from "@/lib/env";
-import { listAssets } from "@/lib/launch/assets";
+import { userTimezone } from "@/lib/auth";
+import { listAssets } from "@/lib/media/assets";
 import { getItem, listSets, newItem, programTags } from "@/lib/launch/store";
 import { PLATFORMS, nowLocal } from "@/lib/launch/types";
 import { loadAll } from "@/lib/load";
 
 export async function generateMetadata({ params }: PageProps<"/launchpad/[id]">) {
   const { id } = await params;
-  return { title: id === "new" ? "New post" : getItem(id)?.title || "Post" };
+  return { title: id === "new" ? "New post" : (await getItem(id))?.title || "Post" };
 }
 
 export default async function LaunchItemPage({ params }: PageProps<"/launchpad/[id]">) {
   const { id } = await params;
   const { collabs } = await loadAll();
-  const item = id === "new" ? newItem() : getItem(id);
+  const item = id === "new" ? newItem() : await getItem(id);
   if (!item) notFound();
-  const now = nowLocal(APP_TIMEZONE);
-  const assets = listAssets(item.assetIds);
+  const now = nowLocal(await userTimezone());
+  const [assets, sets, tags] = await Promise.all([listAssets(item.assetIds), listSets(), programTags(collabs)]);
   const showKit = !!item.id && item.ready && PLATFORMS.some((p) => item.platforms[p].enabled);
 
   return (
@@ -35,7 +35,7 @@ export default async function LaunchItemPage({ params }: PageProps<"/launchpad/[
         )}
         <ItemEditor
           key={item.updatedAt || "new"}
-          initial={item} initialAssets={assets} collabs={collabs} sets={listSets()} programTags={programTags(collabs)}
+          initial={item} initialAssets={assets} collabs={collabs} sets={sets} programTags={tags}
         />
       </div>
     </>

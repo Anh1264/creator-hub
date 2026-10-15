@@ -6,11 +6,11 @@ import { PostKit } from "@/components/launch/kit";
 import { LaunchSettings } from "@/components/launch/settings";
 import { addMonths, daysInMonth, isMonthKey, monthName, monthOf, monthYear } from "@/lib/dates";
 import type { Collab } from "@/lib/domain";
-import { APP_TIMEZONE } from "@/lib/env";
-import { listAssets } from "@/lib/launch/assets";
+import { userTimezone } from "@/lib/auth";
+import { listAssets } from "@/lib/media/assets";
 import { listItems, listSets, programTags } from "@/lib/launch/store";
 import {
-  PLATFORMS, PLATFORM_META, fmtWhen, itemState, nextTime, nowLocal, type ItemState, type PlatformKey, type QueueItem,
+  PLATFORMS, PLATFORM_META, fmtWhen, itemState, nextTime, nowLocal, type Asset, type ItemState, type PlatformKey, type QueueItem,
 } from "@/lib/launch/types";
 import { loadAll } from "@/lib/load";
 
@@ -24,13 +24,17 @@ const STATE: Record<ItemState, { label: string; tone: string }> = {
 export default async function LaunchpadPage({ searchParams }: PageProps<"/launchpad">) {
   const sp = await searchParams;
   const { collabs } = await loadAll();
-  const now = nowLocal(APP_TIMEZONE);
+  const now = nowLocal(await userTimezone());
   const view = sp.view === "calendar" ? "calendar" : "list";
   const plat = PLATFORMS.includes(sp.p as PlatformKey) ? (sp.p as PlatformKey) : null;
   const collabId = typeof sp.c === "string" && collabs.some((c) => c.id === sp.c) ? sp.c : null;
   const month = isMonthKey(sp.m) ? sp.m : monthOf(now.slice(0, 10));
 
-  const items = listItems()
+  const all = await listItems();
+  const [sets, tags, media] = await Promise.all([listSets(), programTags(collabs), listAssets(all.flatMap((i) => i.assetIds))]);
+  const assetMap = new Map(media.map((a) => [a.id, a]));
+  const assetsOf = (ids: string[]) => ids.map((id) => assetMap.get(id)).filter((a) => !!a);
+  const items = all
     .filter((i) => !plat || i.platforms[plat].enabled)
     .filter((i) => !collabId || i.collabIds.includes(collabId));
   const byId = new Map(collabs.map((c) => [c.id, c]));
@@ -49,7 +53,7 @@ export default async function LaunchpadPage({ searchParams }: PageProps<"/launch
 
   // quota gaps this month for the collabs that have one
   const thisMonth = monthOf(now.slice(0, 10));
-  const planned = (c: Collab) => listItems().filter((i) => i.collabIds.includes(c.id) && PLATFORMS.some((p) => {
+  const planned = (c: Collab) => all.filter((i) => i.collabIds.includes(c.id) && PLATFORMS.some((p) => {
     const pl = i.platforms[p];
     const when = (pl.status === "posted" ? pl.postedAt : pl.scheduledAt) ?? "";
     return pl.enabled && pl.status !== "skipped" && when.slice(0, 7) === thisMonth;
@@ -109,19 +113,19 @@ export default async function LaunchpadPage({ searchParams }: PageProps<"/launch
                       <Link href={`/launchpad/${i.id}`} className="due-t">{i.title}</Link>
                       <Collabs ids={i.collabIds} byId={byId} />
                     </div>
-                    <PostKit item={i} assets={listAssets(i.assetIds)} now={now}
+                    <PostKit item={i} assets={assetsOf(i.assetIds)} now={now}
                       only={PLATFORMS.filter((p) => i.platforms[p].status === "pending" && (i.platforms[p].scheduledAt ?? "9") <= now)} />
                   </div>
                 ))}
               </section>
             )}
-            <Section title="Coming up" items={upcoming} now={now} byId={byId} empty={due.length ? "Nothing else scheduled." : "Nothing scheduled yet. Prep a post and give it a time."} />
-            <Section title="Drafts" items={drafts} now={now} byId={byId} />
-            <Section title="Posted" items={posted} now={now} byId={byId} />
+            <Section assets={assetMap} title="Coming up" items={upcoming} now={now} byId={byId} empty={due.length ? "Nothing else scheduled." : "Nothing scheduled yet. Prep a post and give it a time."} />
+            <Section assets={assetMap} title="Drafts" items={drafts} now={now} byId={byId} />
+            <Section assets={assetMap} title="Posted" items={posted} now={now} byId={byId} />
           </>
         )}
 
-        <LaunchSettings sets={listSets()} programTags={programTags(collabs)} collabs={collabs} />
+        <LaunchSettings sets={sets} programTags={tags} collabs={collabs} />
       </div>
     </>
   );
@@ -131,7 +135,7 @@ function Collabs({ ids, byId }: { ids: string[]; byId: Map<string, Collab> }) {
   return <span className="mini-monos">{ids.map((id) => byId.get(id)).filter(Boolean).map((c) => <Mono key={c!.id} collab={c!} size="sm" />)}</span>;
 }
 
-function Section({ title, items, now, byId, empty }: { title: string; items: QueueItem[]; now: string; byId: Map<string, Collab>; empty?: string }) {
+function Section({ title, items, now, byId, empty, assets }: { title: string; items: QueueItem[]; now: string; byId: Map<string, Collab>; empty?: string; assets: Map<string, Asset> }) {
   if (!items.length && !empty) return null;
   const days = items.map((i) => { const t = nextTime(i); return title === "Coming up" && t ? fmtWhen(t).split(" · ")[0] : ""; });
   return (
@@ -141,7 +145,7 @@ function Section({ title, items, now, byId, empty }: { title: string; items: Que
         <div className="jobs">
           {items.map((i, idx) => {
             const header = days[idx] && days[idx] !== days[idx - 1] ? days[idx] : "";
-            const thumb = listAssets(i.assetIds.slice(0, 1))[0];
+            const thumb = i.assetIds[0] ? assets.get(i.assetIds[0]) : undefined;
             const st = STATE[itemState(i, now)];
             return (
               <div key={i.id}>
