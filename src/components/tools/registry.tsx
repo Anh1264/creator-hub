@@ -12,17 +12,17 @@ export interface ToolInfo {
   Icon: ComponentType<SVGProps<SVGSVGElement>>;
   card: string;
   chips: string[];
-  /** Runs entirely in the browser, so it also works on the hosted site. The others need this computer. */
+  /** Also available on the hosted site (it runs in the browser there). The others need this computer. */
   browser?: boolean;
 }
 
 export const TOOLS: ToolInfo[] = [
-  { key: "remove-bg", href: "/tools/remove-bg", name: "Remove background", Icon: IconCutout, card: "Cut the subject out of any photo. Transparent PNG or a solid colour, batch-friendly.", chips: ["Images", "On-device AI"] },
+  { key: "remove-bg", href: "/tools/remove-bg", name: "Remove background", Icon: IconCutout, card: "Cut the subject out of any photo. Transparent PNG or a solid colour, batch-friendly.", chips: ["Images", "On-device AI"], browser: true },
   { key: "youtube-mp3", href: "/tools/youtube-mp3", name: "YouTube → MP3", Icon: IconMusic, card: "Grab the audio from a YouTube video as an MP3 with title, artist and cover art.", chips: ["Audio", "yt-dlp"] },
   { key: "video-download", href: "/tools/video-download", name: "Video downloader", Icon: IconFilm, card: "Save videos from YouTube, TikTok, Instagram, X and 1,000+ other sites.", chips: ["Video", "yt-dlp"] },
   { key: "transcribe", href: "/tools/transcribe", name: "Transcribe", Icon: IconTranscript, card: "Get the transcript of a YouTube video, or of your own audio/video files. Copy, or save as TXT/SRT.", chips: ["Text", "Whisper"] },
   { key: "compress-video", href: "/tools/compress-video", name: "Compress video", Icon: IconShrinkVideo, card: "Shrink a video by quality level or to a target size (8 MB, 25 MB…). Optional resize, 30 fps, H.265.", chips: ["Video", "ffmpeg"] },
-  { key: "compress-image", href: "/tools/compress-image", name: "Compress images", Icon: IconShrinkImage, card: "Shrink photos by quality or to a size in KB. Convert to JPG, WebP or AVIF, resize, strip location data.", chips: ["Images", "Batch"] },
+  { key: "compress-image", href: "/tools/compress-image", name: "Compress images", Icon: IconShrinkImage, card: "Shrink photos by quality or to a size in KB. Convert to JPG, WebP or AVIF, resize, strip location data.", chips: ["Images", "Batch"], browser: true },
   { key: "sign-pdf", href: "/tools/sign-pdf", name: "Sign PDF", Icon: IconSignPdf, card: "Sign, initial, date and tick boxes on any PDF, then download it. Signatures are saved for next time.", chips: ["PDF", "In your browser"], browser: true },
 ];
 

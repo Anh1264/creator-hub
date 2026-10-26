@@ -26,6 +26,8 @@ const nextConfig: NextConfig = {
       "./node_modules/pdfjs-dist/wasm/**",
       "./node_modules/pdfjs-dist/iccs/**",
     ],
+    // Remove background (in the browser) loads its WebAssembly runtime from here.
+    "/api/vendor/**": ["./node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.{mjs,wasm}"],
   },
 };
 

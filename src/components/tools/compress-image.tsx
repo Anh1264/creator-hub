@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { IconDownload, IconRefresh, IconUpload, IconX } from "@/components/icons";
 import { IMAGE_MAX_SIDES, fmtBytes, pctSaved, type ImageFormat } from "@/lib/tools/shared";
+import { compressInBrowser } from "@/lib/browser/engines";
 import { saveAs } from "./api";
 
 type Settings = { format: ImageFormat; mode: "quality" | "size"; quality: number; targetKB: number; maxSide: number | null; keepMeta: boolean };
@@ -28,7 +29,11 @@ function qualityHint(q: number, format: ImageFormat) {
   return "Tiny. Visible blocks and smearing.";
 }
 
-export function CompressImage() {
+/**
+ * engine "server": sharp on this computer (local mode / your Mac). engine "browser": WebAssembly encoders in
+ * the visitor's browser (the hosted site), no upload at all.
+ */
+export function CompressImage({ engine = "server" }: { engine?: "server" | "browser" }) {
   const [s, setS] = useState<Settings>({ format: "same", mode: "quality", quality: 75, targetKB: 500, maxSide: null, keepMeta: false });
   const set = (p: Partial<Settings>) => setS((x) => ({ ...x, ...p }));
   const [items, setItems] = useState<Item[]>([]);
@@ -51,6 +56,17 @@ export function CompressImage() {
         const cur = settings.current;
         patch(next.id, { status: "working" });
         try {
+          if (engine === "browser") {
+            const r = await compressInBrowser(next.file, cur);
+            if (!list.current.some((x) => x.id === next.id)) continue;
+            const old = list.current.find((x) => x.id === next.id)?.out;
+            if (old) URL.revokeObjectURL(old);
+            patch(next.id, {
+              status: "done", out: URL.createObjectURL(r.blob), outSize: r.blob.size, format: r.format, w: r.width, h: r.height,
+              q: r.q, kept: r.kept, note: r.note, ms: r.ms, key: keyOf(cur), error: undefined,
+            });
+            continue;
+          }
           const form = new FormData();
           form.append("file", next.file);
           form.append("format", cur.format);
@@ -84,7 +100,7 @@ export function CompressImage() {
     } finally {
       working.current = false;
     }
-  }, [patch]);
+  }, [patch, engine]);
 
   const add = useCallback((files: FileList | File[]) => {
     const imgs = [...files].filter((f) => f.type.startsWith("image/") || /\.(heic|heif|avif|tiff?)$/i.test(f.name));
@@ -138,14 +154,16 @@ export function CompressImage() {
       >
         <IconUpload />
         <b>Drop images here, click to choose, or paste</b>
-        <span>JPG, PNG, WebP, AVIF, GIF, TIFF, HEIC. Batches are fine. Everything stays on this computer.</span>
+        <span>{engine === "browser"
+          ? "JPG, PNG, WebP, AVIF, GIF (HEIC in Safari). Batches are fine. Images are compressed in your browser, never uploaded."
+          : "JPG, PNG, WebP, AVIF, GIF, TIFF, HEIC. Batches are fine. Everything stays on this computer."}</span>
         <input type="file" accept={ACCEPT} multiple onChange={(e) => { if (e.target.files) add(e.target.files); e.target.value = ""; }} />
       </label>
 
       <div className="opts">
         <div className="field"><span>Format</span>
           <div className="seg">
-            {FORMATS.map(([f, label]) => (
+            {FORMATS.filter(([f]) => engine === "server" || f !== "avif").map(([f, label]) => (
               <label key={f}><input type="radio" name="fmt" checked={s.format === f} onChange={() => set({ format: f })} />
                 <span className="tag t-gray">{label}</span></label>
             ))}
@@ -184,6 +202,7 @@ export function CompressImage() {
           ? qualityHint(s.quality, s.format)
           : "Finds the highest quality that fits. If even the lowest is too big, it shrinks the image too."}
         {(s.format === "avif") && " AVIF is the smallest format but slower to make; not every app opens it yet."}
+        {engine === "browser" && " Camera and location data are always removed."}
       </p>
 
       <div className="opts">
@@ -193,10 +212,12 @@ export function CompressImage() {
             {IMAGE_MAX_SIDES.map((px) => <option key={px} value={px}>{px} px</option>)}
           </select>
         </label>
-        <label className="switch" style={{ paddingBottom: 8 }}>
-          <input type="checkbox" checked={s.keepMeta} onChange={(e) => set({ keepMeta: e.target.checked })} />
-          Keep camera &amp; location data
-        </label>
+        {engine === "server" && (
+          <label className="switch" style={{ paddingBottom: 8 }}>
+            <input type="checkbox" checked={s.keepMeta} onChange={(e) => set({ keepMeta: e.target.checked })} />
+            Keep camera &amp; location data
+          </label>
+        )}
       </div>
 
       <section className="block" style={{ marginTop: 28 }}>

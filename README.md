@@ -143,7 +143,11 @@ See section 2. After the first deploy, every `git push` to `main` deploys automa
 
 ## 5. Tools (remove background · YouTube → MP3 · video downloader · transcribe · compressors · sign PDF)
 
-Under **Tools** in the sidebar. Most run on **your own computer** and are hidden on Vercel. **Sign PDF** runs entirely in the browser, so it works on the hosted site too.
+Under **Tools** in the sidebar. On **your own computer** all of them run (the media ones use ffmpeg, yt-dlp, Whisper and
+ISNet installed here). On the **hosted site** only three show, and they run in the visitor's browser (nothing uploaded):
+**Sign PDF**, **Compress images** (MozJPEG / WebP / PNG via WebAssembly, no AVIF/HEIC/EXIF-keep) and **Remove background**
+(the Apache-2.0 *ormbg* model, ~44 MB, downloaded once per browser from Hugging Face; best on people and characters).
+YouTube → MP3, Video downloader, Transcribe and Compress video stay on your computer: YouTube blocks cloud servers.
 
 **Setup (once per machine):** `npm install`. That installs ffmpeg/ffprobe and the background-removal model from npm, then downloads the official standalone **yt-dlp** for your OS into `.tools/bin/` (checksum-verified). If that last step fails (offline, say), run `npm run tools:setup` later. The **Setup** box on `/tools` shows what's installed.
 

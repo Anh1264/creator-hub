@@ -1,19 +1,24 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { IconDownload, IconUpload, IconX } from "@/components/icons";
+import { removeBgInBrowser } from "@/lib/browser/engines";
 import { saveAs } from "./api";
 
 type Item = {
   id: string; name: string; file: File; src: string;
   status: "queued" | "working" | "done" | "error";
-  out?: string; error?: string; ms?: number;
+  out?: string; error?: string; ms?: number; progress?: string;
 };
 type Bg = "transparent" | "white" | "black" | "custom";
 
 const ACCEPT = "image/png,image/jpeg,image/webp,image/gif,image/tiff,image/avif";
 let seq = 0;
 
-export function RemoveBg() {
+/**
+ * engine "server": ISNet via onnxruntime-node on this computer. engine "browser": ormbg via onnxruntime-web
+ * in the visitor's browser (the hosted site); the model downloads once (~44 MB).
+ */
+export function RemoveBg({ engine = "server" }: { engine?: "server" | "browser" }) {
   const [items, setItems] = useState<Item[]>([]);
   const [quality, setQuality] = useState<"best" | "fast">("best");
   const [bg, setBg] = useState<Bg>("transparent");
@@ -38,6 +43,14 @@ export function RemoveBg() {
         if (!next) break;
         patch(next.id, { status: "working" });
         try {
+          if (engine === "browser") {
+            const r = await removeBgInBrowser(next.file, (loaded, total) =>
+              patch(next.id, { progress: `Downloading the AI model, once: ${Math.round((loaded / total) * 100)}% of ${Math.round(total / 1e6)} MB` }));
+            const out = URL.createObjectURL(r.blob);
+            if (!list.current.some((x) => x.id === next.id)) { URL.revokeObjectURL(out); continue; }
+            patch(next.id, { status: "done", out, ms: r.ms, progress: undefined });
+            continue;
+          }
           const form = new FormData();
           form.append("file", next.file);
           form.append("quality", qualityRef.current);
@@ -56,7 +69,7 @@ export function RemoveBg() {
     } finally {
       working.current = false;
     }
-  }, [patch]);
+  }, [patch, engine]);
 
   const add = useCallback((files: FileList | File[]) => {
     const imgs = [...files].filter((f) => f.type.startsWith("image/"));
@@ -125,19 +138,21 @@ export function RemoveBg() {
       >
         <IconUpload />
         <b>Drop images here, click to choose, or paste</b>
-        <span>JPG, PNG, WebP… several at once is fine. Everything stays on this computer.</span>
+        <span>{engine === "browser"
+          ? "JPG, PNG, WebP… several at once is fine. Done in your browser; images are never uploaded."
+          : "JPG, PNG, WebP… several at once is fine. Everything stays on this computer."}</span>
         <input type="file" accept={ACCEPT} multiple onChange={(e) => { if (e.target.files) add(e.target.files); e.target.value = ""; }} />
       </label>
 
       <div className="opts">
-        <div className="field"><span>Quality</span>
+        {engine === "server" && <div className="field"><span>Quality</span>
           <div className="seg">
             {(["best", "fast"] as const).map((q) => (
               <label key={q}><input type="radio" name="q" checked={quality === q} onChange={() => setQuality(q)} />
                 <span className="tag t-gray">{q === "best" ? "Best" : "Fast"}</span></label>
             ))}
           </div>
-        </div>
+        </div>}
         <div className="field"><span>Background</span>
           <div className="seg" style={{ alignItems: "center" }}>
             {(["transparent", "white", "black", "custom"] as const).map((b) => (
@@ -157,7 +172,9 @@ export function RemoveBg() {
           {done > 1 && <button className="btn ghost" onClick={saveAll}><IconDownload width={14} height={14} />Save all</button>}
           {items.length > 0 && <button className="btn ghost" onClick={() => items.forEach((i) => removeItem(i.id))}>Clear</button>}
         </div>
-        {items.length === 0 ? <div className="empty-card"><p>Cut-outs show up here. The first image takes a few extra seconds while the model loads.</p></div> : (
+        {items.length === 0 ? <div className="empty-card"><p>{engine === "browser"
+          ? "Cut-outs show up here. The first time, your browser downloads the AI model (about 44 MB); after that it starts right away. Works best on people and characters."
+          : "Cut-outs show up here. The first image takes a few extra seconds while the model loads."}</p></div> : (
           <div className="cuts">
             {items.map((i) => {
               const showOriginal = peek === i.id || i.status !== "done";
@@ -173,7 +190,7 @@ export function RemoveBg() {
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={showOriginal ? i.src : i.out} alt={i.name} draggable={false} />
                     {(i.status === "queued" || i.status === "working") && (
-                      <div className="over">{i.status === "working" ? <><div className="spin" />Removing background…</> : "Waiting…"}</div>
+                      <div className="over">{i.status === "working" ? <><div className="spin" />{i.progress ?? "Removing background…"}</> : "Waiting…"}</div>
                     )}
                     {i.status === "error" && <div className="over"><span className="err" style={{ padding: 16 }}>{i.error}</span></div>}
                   </div>
